@@ -7,6 +7,7 @@ From mathcomp Require Import ssreflect ssrfun.
 Require Import all_mf.
 Require Import Classical.
 
+Local Open Scope mf_scope.
 Section classical_mf.
 Context (S T: Type).
 
