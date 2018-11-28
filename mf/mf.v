@@ -375,10 +375,10 @@ Lemma PF2MF_comp_PF2MF R S T (f: S -> option T) (g: R -> option S):
 	(PF2MF f \o PF2MF g) =~= PF2MF (f \o_p g).
 Proof.
 move => r t.
-split => [[[s [/=]]]].
-case E:  (g r) => // eq.
-case E': (f s) => // eq' _.
-by rewrite /pcomp /obind/oapp E eq E'.
+split.
+rewrite <- PF2MF_rcmp_PF2MF.
+intros [A _].
+exact A.
 rewrite /pcomp/obind/oapp/=.
 case E: (g r) => [s | ]//.
 case E': (f s) => // eq.
