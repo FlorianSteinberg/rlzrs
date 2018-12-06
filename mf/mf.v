@@ -330,6 +330,13 @@ Notation "f '\o_R' g" := (mf_rel_comp f g) (at level 2).
 Notation "f \o_f g" := (f \o g) (at level 30).
 Notation "f '\o_p' g" := (pcomp f g) (at level 50).
 
+Lemma restr_rcmp_equiv S T S' T' (f f': S ->> T) (g: S' ->> S) (g': T' ->> S') (q: T') a:
+	g' q a -> f|_(g \o_R g' q) =~= f'|_(g \o_R g' q) -> f|_(g a) =~= f'|_(g a).
+Proof.
+move => gqa eq s t.
+split => [[gas fst] | [gas f'st]]; first by split => //; apply (eq s t).1; split; first by exists a.
+by split => //; apply (eq s t).2; split; first by exists a.
+Qed.
 
 Section composition.
 Definition composition R S T (f : S ->> T) (g : R ->> S) :=
@@ -369,6 +376,13 @@ case E: (g r) => [s | ]//.
 case E': (f s) => // eq.
 split; first by exists s; split => //; rewrite E'.
 by move => k /= <-; exists t; rewrite E'.
+Qed.
+
+Lemma comp_rcmp_corestr R S T (f: R ->> S) (g: S ->> T):
+  g \o_R f =~= g \o f|^(dom g).
+Proof.
+move => r t; split => [[s [frs gst]] | [[s [[]]]]]; last by exists s.
+by split => [ | s' []]//; exists s; split => //; split => //; exists t.
 Qed.
 
 Notation "f '\is_section_of' g" := (f \o g =~= F2MF id) (at level 2).
@@ -765,6 +779,12 @@ Definition extends S T (f g: S ->> T) := forall s, f s \is_subset_of g s.
 Notation "g '\extends' f" := (extends f g) (at level 50).
 Definition mf_exte S T := make_mf (@extends S T).
 Arguments mf_exte {S} {T}.
+
+Global Instance exte_refl S T: Reflexive (@extends S T).
+Proof. by move => s t fst. Qed.
+
+Global Instance exte_trans S T: Transitive (@extends S T).
+Proof. by move => f g h gef heg s t fst; apply/heg/gef. Qed.
 
 Definition pextends S T (f g: S -> option T):= forall s t, f s = some t -> g s = some t.
 
