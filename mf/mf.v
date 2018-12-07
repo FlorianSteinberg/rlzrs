@@ -106,7 +106,7 @@ Proof. by split => [eq s t/= | eq s]; [split => <-; rewrite (eq s) | have ->:= (
 
 Definition PF2MF S T (f: S -> option T): (S ->> T) := make_mf (fun s =>
 match f s with
-	|	None => empty T
+	|	None => empty
 	| Some fs => singleton fs
 end).
 
@@ -189,10 +189,18 @@ Arguments mf_id {S}.
 Lemma id_inv S: mf_id\^-1 =~=@mf_id S.
 Proof. done. Qed.
 
-Definition empty_mf S T := make_mf (fun (s: S) => @empty T).
+Definition mf_empty S T := make_mf (fun (s: S) => @empty T).
+Arguments mf_empty {S} {T}.
 
-Lemma empty_inv S T: (@empty_mf S T) \inverse =~= (@empty_mf T S).
+Lemma empty_inv S T: mf_empty \inverse =~= (@mf_empty T S).
 Proof. done. Qed.
+
+Lemma empty_dom S T (f : S ->> T)
+  : dom f === empty <-> f =~= mf_empty.
+Proof.
+split => [eq s t | eq]; last by split => // [[t fst]]; apply/eq/fst.
+by split => // fst; apply/eq; exists t; apply/fst. 
+Qed.
 
 Definition corestr S T (f: S ->> T) (P: mf_subset.type T) := make_mf (fun s t => P t /\ f s t).
 Notation "f '\corestricted_to' P" := (corestr f P) (at level 2).
@@ -243,6 +251,10 @@ Proof.
 move => f g feqg P Q PeqQ s t.
 by split => [[Ps fst] | [Qs gst]]; split => //; try apply PeqQ; try apply feqg.
 Qed.
+
+Lemma restr_eq_r {S T : Type} (f : S ->> T) (P Q : subset S)
+  : P === Q -> f|_P =~= f|_Q.
+Proof. by move ->. Qed.
 
 Lemma restr_inv S T (f: S ->> T) P: (f|_P)\^-1 =~= (f\^-1)|^P.
 Proof. done. Qed.
@@ -359,8 +371,11 @@ split => [[[r [/=-> fst]] prop] | fgrt] //.
 by split => [ | r eq]; [exists (g s) | exists s0; rewrite -eq].
 Qed.
 
-Lemma F2MF_comp_F2MF R S T (f: S -> T) (g: R -> S):
-	(F2MF f \o F2MF g) =~= F2MF (f \o_f g).
+Lemma comp_F2MF_eq_r S T R (f g : T ->> R) (h : S -> T)
+  : f =~= g -> f \o (F2MF h) =~= g \o (F2MF h).
+Proof. by move => ->. Qed.
+
+Lemma F2MF_comp_F2MF R S T (f: S -> T) (g: R -> S): (F2MF f \o F2MF g) =~= F2MF (f \o_f g).
 Proof. by move => s t; rewrite comp_F2MF /=. Qed.
 
 Lemma PF2MF_comp_PF2MF R S T (f: S -> option T) (g: R -> option S):
@@ -383,6 +398,21 @@ Lemma comp_rcmp_corestr R S T (f: R ->> S) (g: S ->> T):
 Proof.
 move => r t; split => [[s [frs gst]] | [[s [[]]]]]; last by exists s.
 by split => [ | s' []]//; exists s; split => //; split => //; exists t.
+Qed.
+
+Lemma comp_eq_r {S T U : Type} (f : S ->> T) (g h : T ->> U)
+  : g =~= h -> (g \o f) =~= (h \o f).
+Proof. by move ->. Qed.
+
+Lemma comp_val_eq S T R (f : S ->> T) (g h : T ->> R) s
+  : g|_(f s) =~= h|_(f s) -> (g \o f) s === (h \o f) s.
+Proof.
+move => eq r.
+split; case => [[t [fsr grt] ] subs].
+- split => [ | t' fst']; first by exists t; split =>//; have [[]]//:= eq t r.
+  by have [ | r' gt'r']//:= subs t'; exists r'; have [[]]//:= eq t' r'.
+split => [ | t' fst']; first by exists t; split =>//; have [_ []]//:= eq t r.
+by have [ | r' gt'r']//:= subs t'; exists r'; have [_ []]//:= eq t' r'.
 Qed.
 
 Notation "f '\is_section_of' g" := (f \o g =~= F2MF id) (at level 2).
@@ -486,10 +516,10 @@ Proof.
 split => [[[t' [<- fst]] _] | fst] //; by split => [| t' <- ]; [exists s|exists s0].
 Qed.
 
-Lemma comp_empty_l S T R (f: S ->> T): (@empty_mf T R) \o f =~= (@empty_mf S R).
+Lemma comp_empty_l S T R (f: S ->> T): (@mf_empty T R) \o f =~= (@mf_empty S R).
 Proof. by split => //=; move => [[a []]]. Qed.
 
-Lemma comp_empty_r S T R (f: S ->> T): f \o (@empty_mf R S) =~= (@empty_mf R T).
+Lemma comp_empty_r S T R (f: S ->> T): f \o (@mf_empty R S) =~= (@mf_empty R T).
 Proof. by split => //=; move => [[a []]]. Qed.
 End composition.
 Notation "f '\o' g" := (composition f g) (at level 50).
@@ -626,7 +656,7 @@ Proof. by move => s t t' [[t'' frcs] fst] [_ fst']; rewrite (frcs t) // (frcs t'
 Global Instance sing_prpr S T: Proper ((@equiv S T) ==> iff) (@singlevalued S T).
 Proof. by split => sing s t t' fst fst'; apply /(sing s t t'); apply /H. Qed.
 
-Lemma empty_sing: (@empty_mf S T) \is_singlevalued.
+Lemma empty_sing: (@mf_empty S T) \is_singlevalued.
 Proof. done. Qed.
 
 Lemma F2MF_sing (f: S-> T): (F2MF f) \is_singlevalued.
@@ -732,14 +762,25 @@ Definition monomorphism := make_subset (fun (f: S ->> T) =>
 	forall Q (g h: Q ->> S), f \o g =~= f \o h -> g =~= h).
 Notation "f '\is_mono'" := (monomorphism f) (at level 2).
 
-Lemma empty_not_mono (s: S): ~(@empty_mf S T) \is_mono.
+Lemma empty_not_mono (s: S): ~(@mf_empty S T) \is_mono.
 Proof.
 move => inj.
 pose g := F2MF (fun (b: bool) => s).
-pose h := @empty_mf bool S.
+pose h := @mf_empty bool S.
 suff eq: g =~= h by have /=<-:= eq true s.
 apply inj.
 by rewrite !comp_empty_l.
+Qed.
+
+Lemma inj_F2MF_mono (f : S -> T): injective f -> (F2MF f) \is_mono.
+Proof.
+move => inj R g h.
+rewrite !comp_rcmp => [ eq s t | | ]; try exact/F2MF_tot.
+split => [gst | hst]; have []:= eq s (f t).
+- move => []; first by exists t.
+  by move => t' [] hst' /inj <-.
+move => _ []; first by exists t.
+by move => t' [] gst' /inj <-.
 Qed.
 
 (* Classically, being an epimorphism implies being cototal (see file classical_mf.v).
@@ -753,10 +794,10 @@ exists f'; split => [ | sur ]; first by exists s.
 pose g := make_mf (fun k b => k = t /\ b = true).
 pose h := make_mf (fun k b => k = t /\ b = false).
 suffices eq: g \o f' =~= h \o f'.
-	have [a b]:= (((sur bool g h) eq) t false).
-	by suffices htt: h t false by move: (b htt).2.
+- have [a b]:= (((sur bool g h) eq) t false).
+  by suffices htt: h t false by move: (b htt).2.
 by split; move => [ [] _ [] _ [] _ _ prop];
-	by have [ | b' [eq]]:= (prop t' _); last by exfalso; apply neq.
+                   by have [ | b' [eq]]:= (prop t' _); last by exfalso; apply neq.
 Qed.
 
 (* Again Classically, the inverse is true for singlevalud functions (see classical_mf.v).
@@ -1403,6 +1444,9 @@ Proof. by move => [s s'] [t t'] /=;split; by move => [-> ->]. Qed.
 Definition mf_fst S T := (F2MF (@fst S T)).
 Arguments mf_fst {S} {T}.
 
+Lemma fst_unit_inj: (forall t t' : T, t = t') -> injective (@fst S T).
+Proof. by move => eq s t eq'; exact/injective_projections. Qed.
+
 Lemma fprd_fst R R' Q Q' (f: R ->> Q) (g: R' ->> Q') : mf_fst \o (f ** g) =~= (f \o mf_fst)|_(All \x dom g).
 Proof.
 move => s t; rewrite comp_F2MF.
@@ -1428,6 +1472,12 @@ Definition diag S := fun (d: S) => (d,d).
 Arguments diag {S}.
 Definition mf_diag S := F2MF (@diag S).
 Arguments mf_diag {S}.
+
+Lemma snd_diag_id: mf_snd \o @mf_diag S =~= mf_id.
+Proof. by rewrite F2MF_comp_F2MF. Qed.
+
+Lemma fst_diag_id: mf_fst \o @mf_diag S =~= mf_id.
+Proof. by rewrite F2MF_comp_F2MF. Qed.
 
 Definition prd_mf R S T (f: R ->> S) (g: R ->> T):= make_mf (fun r st =>
                                                               f r st.1 /\ g r st.2).
@@ -1533,3 +1583,5 @@ Arguments diag {S}.
 Arguments mf_diag {S}.
 Arguments mf_fst {S} {T}.
 Arguments mf_snd {S} {T}.
+Arguments mf_empty {S} {T}.
+Arguments empty {S}.

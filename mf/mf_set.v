@@ -114,6 +114,7 @@ Notation "P '\intersects' Q" := (intersects P Q) (at level 50).
 Notation "P \n Q" := (intersection P Q) (at level 2).
 Notation "P \u Q" := (union P Q) (at level 2).
 Arguments All {S}.
+Arguments empty {S}.
 
 Section products.
 Definition set_prod S T (P: mf_subset.type S) (Q: mf_subset.type T) :=
@@ -138,5 +139,16 @@ move => Ps Qt eq.
 split => [s | t]; first by have [/= _ []]//:= eq (s, somet).
 by have [/= _ []]//:= eq (somes, t).
 Qed.
+
+Lemma empty_prod S T : @empty (S * T) === empty \x empty.
+Proof. by move => [s t]; split => // [[]]. Qed.
+
+Lemma prod_eq S T (a c : subset S) (b d : subset T)
+  : a === c -> b === d -> a \x b === c \x d.
+Proof. by move => eq eq'; rewrite eq eq'. Qed.
+
+Lemma prod_empty_l S T (A : subset S) (B : subset T)
+  : A === empty -> (A \x B) === @empty (S * T).
+Proof. by move => -> s; split => [[] | ]. Qed.
 End products.
 Notation "P \x Q" := (set_prod P Q) (at level 40).

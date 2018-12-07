@@ -15,7 +15,7 @@ Proof.
 move => inj s.
 apply not_all_not_ex => all.
 pose g := F2MF (fun (b: bool) => s).
-pose h := @empty_mf bool S.
+pose h := @mf_empty bool S.
 suff eq: g =~= h by have /=<-:= eq true s.
 apply inj.
 rewrite comp_F2MF comp_empty_r => q r /=.
