@@ -369,6 +369,38 @@ move => [q1 q2] a [/=aaq1 aaq2] ex; split; first by exists q2.
 by move => q' <-; exists a.2.
 Qed.
 
+Lemma fsum_rlzr Q'' (A'': interview Q'') Q''' (A''': interview Q''')
+	F (f: A ->> A') G (g: A'' ->> A'''):
+	F \realizes f -> G \realizes g -> (F +s+ G) \realizes (f +s+ g).
+Proof.
+move => rlzr rlzr'.
+case => q.
+- case => a qra [[a' faa' | ]//].
+  have [ | [q' Fqq'] prp]:= rlzr q a qra; first by exists a'.
+  split => [ | []// Fq' val]; first by exists (inl q').
+  by have [fa []]:= prp Fq' val; exists (inl fa).
+case => a qra [[ | a' faa']//].
+have [ | [q' Fqq'] prp]:= rlzr' q a qra; first by exists a'.
+split => [ | []// Fq' val]; first by exists (inr q').
+by have [fa []]:= prp Fq' val; exists (inr fa).
+Qed.
+
+Definition mf_inl S T:= F2MF (@ inl S T).
+
+Lemma inl_rlzr:
+  (@mf_inl Q Q') \realizes (@mf_inl A A': A ->> (sum_interview A A')).
+Proof.
+by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inl a)].
+Qed.
+
+Definition mf_inr S T:= F2MF (@inr S T).
+
+Lemma inr_rlzr:
+  (@mf_inr Q Q') \realizes (@mf_inr A A': A' ->> (sum_interview A A')).
+Proof.
+by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inr a)].
+Qed.
+
 Definition mf_cons Q := F2MF (fun aL => @cons Q aL.1 aL.2).
 
 Lemma cons_rlzr:
