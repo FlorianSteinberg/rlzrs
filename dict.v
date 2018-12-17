@@ -31,6 +31,12 @@ Notation "a \is_answer_to q" := (a \is_answer_to  q in _) (at level 2).
 Definition answer_unique Q (A: dictionary Q) :=
 	(@dictionary_mixin.answer_unique Q A A).
 Arguments answer_unique {Q} {A}.
+Definition make_dictm Q A (conv: Q ->> A) (sur: conv \is_cototal) (sing: conv \is_singlevalued):
+  dictionary_mixin.type (make_ntrvw sur).
+Proof. split; exact/sing. Defined.
+
+Definition make_dict Q A (conv: Q ->> A) (sur: conv \is_cototal) (sing: conv \is_singlevalued):=
+  dictionary.Pack (make_dictm sur sing).
 
 Section dictionaries.
 Context Q (A: dictionary Q).
