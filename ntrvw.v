@@ -51,6 +51,8 @@ Definition only_respond Q (A: interview.type Q) := (interview_mixin.only_respond
 Arguments only_respond {Q} {A}.
 Notation get_question a := (only_respond a).
 Notation interview := interview.type.
+Definition make_ntrvw S T (conv: S ->> T) (sur: conv \is_cototal): interview S.
+Proof. exists T; exists conv; exact/sur. Defined.
 
 Section interviews.
 Lemma id_sur S: (@mf_id S) \is_cototal.
