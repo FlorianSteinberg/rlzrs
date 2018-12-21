@@ -28,117 +28,119 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module interview_mixin.
-Structure type questions answers := Pack {
-conversation: questions ->> answers;
-only_respond : conversation \is_cototal;
-}.
-End interview_mixin.
-
 Module interview.
-Structure type (questions: Type) := Pack {
-answers:> Type;
-mixin: interview_mixin.type questions answers;
-}.
+  Record mixin_of Q A :=
+    Mixin {
+        conversation: Q ->> A;
+        only_respond : conversation \is_cototal;
+      }.
+
+  Structure struc_of A :=
+    Struc {Q; mixin: mixin_of Q A}.
+      
+  Structure type :=
+    Pack {A:> Type; struc: struc_of A;}.
 End interview.
-Coercion interview.answers: interview.type >-> Sortclass.
-Coercion interview.mixin : interview.type >-> interview_mixin.type.
-Definition conversation Q (C: interview.type Q) :=
-	interview_mixin.conversation (interview.mixin C).
-Notation "a '\is_response_to' q 'in' C" := (conversation C q a) (at level 2).
-Notation "a \is_response_to q" := (a \is_response_to  q in _) (at level 2).
-Definition only_respond Q (A: interview.type Q) := (interview_mixin.only_respond A).
-Arguments only_respond {Q} {A}.
-Notation get_question a := (only_respond a).
-Notation interview := interview.type.
-Definition make_ntrvw S T (conv: S ->> T) (sur: conv \is_cototal): interview S.
-Proof. exists T; exists conv; exact/sur. Defined.
-
+  
 Section interviews.
-Lemma id_sur S: (@mf_id S) \is_cototal.
-Proof. by move => c; exists c. Qed.
+  Local Notation interview:= interview.type.
+  Local Notation Pack := interview.Pack.
+  Local Notation answers := interview.A.
+  Local Notation questions := interview.Q.
+  Local Coercion answers: interview >-> Sortclass.
+  Local Coercion interview.struc: interview >-> interview.struc_of.
+  Local Coercion interview.mixin: interview.struc_of >-> interview.mixin_of.
+  Notation conversation:= interview.conversation.
 
-Definition id_interview_mixin S: interview_mixin.type S S.
-Proof. exists mf_id; exact/id_sur. Defined.
+  Lemma conv_sur (I: interview): (conversation I) \is_cototal.
+  Proof. by case: I => A [Q []]. Qed.
 
-Definition id_interview S:= interview.Pack (id_interview_mixin S).
+  Local Notation "a '\is_response_to' q 'in' I" := (conversation I q a) (at level 2).
+  Local Notation "a \is_response_to q" := (a \is_response_to  q in _) (at level 2).
+  Definition only_respond (I: interview) := (interview.only_respond I).
 
-Definition fun_interview_mixin Q A (f: A -> Q): interview_mixin.type Q A.
-Proof. exists (F2MF f\^-1); exact /cotot_tot_inv/F2MF_tot. Defined.
+  Lemma id_sur S: (@mf_id S) \is_cototal.
+  Proof. by move => c; exists c. Qed.
 
-Definition fun_interview Q A (f: A -> Q):= interview.Pack (fun_interview_mixin f).
-Arguments fun_interview: clear implicits.
+  Definition make_ntrvw Q A (conv: Q ->> A) (sur: conv \is_cototal):=
+    Pack (interview.Struc (interview.Mixin sur)).
 
-Canonical sub_interview A (P: mf_subset.type A):= fun_interview A {a: A | P a} (@projT1 A P).
+  Definition id_interview S:= make_ntrvw (@id_sur S).
 
-Context Q (A : interview Q).
+  Lemma fun_conv_sur Q A (f: A -> Q): (F2MF f\^-1) \is_cototal.
+  Proof. exact/cotot_tot_inv/F2MF_tot. Qed.
 
-Definition comp_conv (D: interview A):= (conversation D) \o_R (conversation A).
+  Definition fun_interview Q A (f: A -> Q):= make_ntrvw (fun_conv_sur f).
 
-Lemma comp_conv_sur (D: interview A): (comp_conv D) \is_cototal.
-Proof.
-move => d''; have [d dnd'']:= get_question d''; have [q qnd]:= get_question d;by exists q; exists d.
-Qed.
+  Definition sub_interview_mixin A (P: subset A):= interview.Mixin (fun_conv_sur (@projT1 A P)).
+  Definition sub_interview_struc A (P: subset A) := interview.Struc (sub_interview_mixin P).
+  Definition  sub_interview A (P: subset A):= Pack (sub_interview_struc P).
+  
+  Context (I : interview).
+  
+  Definition comp_conv (M: interview.struc_of (interview.Q I)):=
+    (conversation I) \o_R (conversation M).
+    
+  Lemma comp_conv_sur (M: interview.struc_of (questions I)): (comp_conv M) \is_cototal.
+  Proof. case: M => Q [conv sur]; apply/rcmp_cotot/sur/conv_sur. Qed.
 
-Definition combine_interview_mixin (D: interview A): interview_mixin.type Q D.
-Proof. exists (comp_conv D); exact/comp_conv_sur. Defined.
+  Definition cmbn_ntrvw (M: interview.struc_of (questions I)) := make_ntrvw (comp_conv_sur M).
 
-Definition cmbn_ntrvw (D: interview A) := interview.Pack (combine_interview_mixin D).
+  Context (I': interview).
+  Definition prod_conv := (conversation I) ** (conversation I').
 
-Context Q' (A': interview Q').
-Definition prod_conv := (conversation A) ** (conversation A').
+  Lemma prod_conv_sur: prod_conv \is_cototal.
+  Proof. by apply/fprd_cotot/only_respond/only_respond. Qed.
 
-Lemma prod_conv_sur: prod_conv \is_cototal.
-Proof. by apply/fprd_cotot/only_respond/only_respond. Qed.
+  Definition prod_interview_mixin := interview.Mixin prod_conv_sur.
+  Canonical prod_interview_struc:= interview.Struc prod_interview_mixin.
+  Canonical prod_interview := Pack prod_interview_struc.
 
-Definition prod_interview_mixin : interview_mixin.type (Q * Q') (A * A').
-Proof. by exists prod_conv; exact/prod_conv_sur. Defined.
+  Definition sum_conv:= (conversation I) +s+ (conversation I').
+  
+  Lemma sum_conv_sur: sum_conv \is_cototal.
+  Proof.
+    move => [a | b] /=.
+      by have [c cna]:= conv_sur a; exists (inl c).
+    by have [c cnab]:= conv_sur b; exists (inr c).
+  Qed.
 
-Canonical prod_interview := interview.Pack prod_interview_mixin.
+  Definition sum_interview_mixin := interview.Mixin sum_conv_sur.
+  Canonical sum_interview_struc:= interview.Struc sum_interview_mixin.
+  Canonical sum_interview := Pack sum_interview_struc.
 
-Definition sum_conv:= (conversation A) +s+ (conversation A').
+  Definition list_conv := mf_map (conversation I).
 
-Lemma sum_conv_sur: sum_conv \is_cototal.
-Proof.
-move => [a | b] /=.
-	by have [c cna]:= get_question a; exists (inl c).
-by have [c cnab]:= get_question b; exists (inr c).
-Qed.
+  Lemma list_conv_sur: list_conv \is_cototal.
+  Proof. exact/map_sur/conv_sur. Qed.
 
-Definition sum_interview_mixin: interview_mixin.type (Q + Q') (A + A').
-Proof. by exists sum_conv; exact /sum_conv_sur. Defined.
-
-Canonical sum_interview := interview.Pack sum_interview_mixin.
-
-Fixpoint list_conv_prp (K: seq Q) (L: seq A) := match K with
-	| nil => L = nil
-	| (q :: K') => match L with
-		| nil => False
-		| (a :: L') => a \is_response_to q /\ list_conv_prp K' L'
-	end
-end.
-
-Definition list_conv := make_mf list_conv_prp.
-
-Lemma list_conv_sur: list_conv \is_cototal.
-Proof.
-elim => [ | a L [K lcKL]]; first by exists nil.
-have [q qna] := get_question a.
-by exists (q :: K).
-Qed.
-
-Definition list_interview_mixin: interview_mixin.type (seq Q) (seq A).
-Proof. by exists list_conv; exact /list_conv_sur. Defined.
-
-Definition list_interview := interview.Pack list_interview_mixin.
+  Definition list_interview_mixin:= interview.Mixin list_conv_sur.
+  Canonical list_interview_struc:= interview.Struc list_interview_mixin.
+  Canonical list_interview := Pack list_interview_struc.
 End interviews.
+Notation interview:= interview.type.
+Notation answers := interview.A.
+Notation questions := interview.Q.
+Coercion answers: interview >-> Sortclass.
+Coercion interview.struc : interview >-> interview.struc_of.
+Coercion interview.mixin : interview.struc_of >-> interview.mixin_of.
+Notation conversation:= interview.conversation.
+Notation get_question:= conv_sur.
+Notation "a '\is_response_to' q 'in' I" := (conversation (interview.struc I) q a) (at level 2).
+Notation "a \is_response_to q" := (a \is_response_to  q in _) (at level 2).
 
 Section realizer.
-Context Q (A: interview Q) Q' (A': interview Q').
+  Context (I I': interview).
+  Notation Q := (questions I).
+  Notation A := (answers I).
+  Notation Q':= (questions I').
+  Notation A':= (answers I').
 
-Definition rlzr (F: Q ->> Q') (f: A ->> A') :=
-		(forall q a, a \is_response_to q -> a \from dom f -> q \from dom F /\
-		forall Fq, F q Fq -> exists fa, fa \is_response_to Fq /\ f a fa).
+  Definition rlzr (F: Q ->> Q') (f: A ->> A') :=
+    (forall q a, a \is_response_to q -> a \from dom f ->
+                 q \from dom F
+                 /\
+		 forall Fq, F q Fq -> exists fa, fa \is_response_to Fq /\ f a fa).
 Notation "F '\realizes' f" := (rlzr F f) (at level 2).
 Definition mf_rlzr := make_mf rlzr.
 
@@ -174,22 +176,26 @@ Lemma rlzr_val (F: Q ->> Q') (f: A ->> A') q a Fq: F \realizes f ->
 	a \is_response_to q -> a \from dom f -> F q Fq -> exists fa, fa \is_response_to Fq /\ f a fa.
 Proof. by move => Frf arq qfd FqFq; have [_ prp]:= Frf q a arq qfd; apply prp. Qed.
 End realizer.
-Arguments mf_rlzr {Q} {A} {Q'} {A'}.
+Arguments mf_rlzr {I} {I'}.
 Notation "f '\is_realized_by' F" := (rlzr F f) (at level 2).
 Notation "F '\realizes' f" := (rlzr F f) (at level 2).
 
 Section realizers.
-Lemma id_rlzr_tight Q Q' (F G: id_interview Q ->> id_interview Q'):
-	F \realizes G <-> F \tightens G.
+Lemma id_rlzr_tight Q Q' F G:
+	@mf_rlzr (id_interview Q) (id_interview Q') F G <-> F \tightens G.
 Proof.
-split =>[rlzr s sfd | tight q a <- afd].
-	split => [ | t Fst]; first exact /rlzr_dom/sfd.
-	by have [ | Fs [<-]]// :=rlzr_val rlzr _ sfd Fst.
-split => [ | Fq FqFq]; first exact/tight_dom/afd.
-exists Fq; split => //; exact/tight_val/FqFq.
+  split =>[rlzr s sfd | tight q a <- afd].
+  - split => [ | t Fst]; first exact /(rlzr_dom rlzr)/sfd.
+    by have [ | Fs [<-]]// :=rlzr_val rlzr _ sfd Fst.
+  split => [ | Fq FqFq]; first exact/tight_dom/afd.
+  by exists Fq; split => //; apply/tight_val/FqFq.
 Qed.
 
-Context Q (A: interview Q) Q' (A': interview Q').
+Context (I I': interview).
+Notation Q := (questions I).
+Notation A := (answers I).
+Notation Q':= (questions I').
+Notation A':= (answers I').
 
 Lemma rlzr_val_sing (f: A ->> A') F: f \is_singlevalued -> F \realizes f ->
 	forall q a q' a', a \is_response_to q -> f a a' -> F q q' -> a' \is_response_to q'.
@@ -200,7 +206,7 @@ have [d' [d'aq' fad']]:= prp q' Fqq'.
 by rewrite (sing a a' d').
 Qed.
 
-Lemma rlzr_comp Q'' (A'': interview Q'') G F (f: A ->> A') (g: A' ->> A''):
+Lemma rlzr_comp (I'': interview) G F (f: A ->> A') (g: A' ->> answers I''):
 	G \realizes g -> F \realizes f -> (G \o F) \realizes (g \o f).
 Proof.
 move => Grg Frf q a arq [gfa [[fa [fafa gfagfa]]] subs].
@@ -291,60 +297,68 @@ Notation "f '\is_realized_by' F" := (rlzr F f) (at level 2).
 Notation "F '\realizes' f" := (rlzr F f) (at level 2).
 
 Section morphisms.
-Context Q Q' (A: interview Q) (A': interview Q').
+  Context (I I': interview).
+  Notation Q := (questions I).
+  Notation A := (answers I).
+  Notation Q':= (questions I').
+  Notation A':= (answers I').
 
-Definition mf_morphism (f: A ->> A') := exists F, F \realizes f.
+  Definition mf_morphism (f: A ->> A') := exists F, F \realizes f.
 
-Definition mf_morphisms := {f: A ->> A' | mf_morphism f}.
+  Definition mf_morphisms := {f: A ->> A' | mf_morphism f}.
+  
+  Definition mf_mrph_conv:= make_mf (fun F (f: mf_morphisms) => F \realizes (projT1 f)).
+  
+  Lemma mf_mrph_conv_sur : mf_mrph_conv \is_cototal.
+  Proof. by move => [f [F rlzr]]; exists F. Qed.
+  
+  Definition morphisms_interview:= make_ntrvw mf_mrph_conv_sur.
+  
+  Definition morphism f := mf_morphism (F2MF f).
+  
+  Definition morphisms := {f | morphism f}.
 
-Definition mf_mrph_conv:= make_mf (fun F (f: mf_morphisms) => F \realizes (projT1 f)).
+  Definition mrph_conv:= make_mf (fun F (f: morphisms) => F \realizes (F2MF (projT1 f))).
 
-Lemma mf_mrph_conv_sur : mf_mrph_conv \is_cototal.
-Proof. by move => [f [F rlzr]]; exists F. Qed.
-
-Definition morphisms_interview_mixin: interview_mixin.type (Q ->> Q') mf_morphisms.
-Proof. exists mf_mrph_conv; exact/mf_mrph_conv_sur. Defined.
-
-Canonical morphisms_interview:= interview.Pack morphisms_interview_mixin.
-
-Definition morphism f := mf_morphism (F2MF f).
-
-Definition morphisms := {f | morphism f}.
-
-Definition mrph_conv:= make_mf (fun F (f: morphisms) => F \realizes (F2MF (projT1 f))).
-
-Lemma mrph_conv_sur: mrph_conv \is_cototal.
-Proof. by move => [f [F rlzr]]; exists F. Qed.
-
-Definition mrph_interview_mixin: interview_mixin.type (Q ->> Q') morphisms.
-Proof. exists mrph_conv; exact mrph_conv_sur. Defined.
+  Lemma mrph_conv_sur: mrph_conv \is_cototal.
+  Proof. by move => [f [F rlzr]]; exists F. Qed.
 End morphisms.
 
 Section realizer_functions.
-Context Q (A: interview Q).
+  Context (I : interview).
+  Notation Q := (questions I).
+  Notation A := (answers I).
+  
+  Lemma id_rlzr: mf_id \realizes (@mf_id (answers I)).
+  Proof. by move => q a qna [d /= eq]; split => [ | _ <-]; [exists q | exists a]. Qed.
 
-Lemma id_rlzr: (@mf_id Q) \realizes (@mf_id A).
-Proof. by move => q a qna [d /= eq]; split => [ | _ <-]; [exists q | exists a]. Qed.
+  Context (I': interview).
+  Notation Q':= (questions I').
+  Notation A':= (answers I').
 
-Context Q' (A': interview Q').
+  Definition cmbn_rlzr (M: interview.struc_of Q) (M': interview.struc_of Q')
+             (F: questions (interview.Pack M) ->> questions (interview.Pack M'))
+             : questions (cmbn_ntrvw M) ->> questions (cmbn_ntrvw M').
+    apply/F.
+  Defined.
+  
+  Lemma cmbn_smbly_rlzr (M: interview.struc_of Q) (M': interview.struc_of Q')
+        F (G: answers (interview.Pack M) ->> answers (interview.Pack M')) f:
+    F \realizes G -> G \realizes f -> (cmbn_rlzr F) \realizes (f: cmbn_ntrvw M ->> cmbn_ntrvw M').
+  Proof.
+    move => FrG Grf q a [d [qnd dna]] afd.
+    have [dfd prp]:= Grf d a dna afd.
+    have [qfd prp']:= FrG q d qnd dfd.
+    split => // q' Fqq'.
+    have [d' [q'nd' Gdd']]:= prp' q' Fqq'.
+    have [d''' [d'nd''' fd'd''']]:= prp d' Gdd'.
+    by exists d'''; split => //; exists d'.
+  Qed.
 
-Lemma cmbn_smbly_rlzr (A'': interview A) (A''': interview A') F G f:
-	F \realizes G -> G \realizes f -> F \realizes (f: cmbn_ntrvw A'' ->> cmbn_ntrvw A''').
-Proof.
-move => FrG Grf q a [d [qnd dna]] afd.
-have [dfd prp]:= Grf d a dna afd.
-have [qfd prp']:= FrG q d qnd dfd.
-split => // q' Fqq'.
-have [d' [q'nd' Gdd']]:= prp' q' Fqq'.
-have [d''' [d'nd''' fd'd''']]:= prp d' Gdd'.
-by exists d'''; split => //; exists d'.
-Qed.
-
-Lemma fprd_rlzr Q'' (A'': interview Q'') Q''' (A''': interview Q''')
-	F (f: A ->> A') G (g: A'' ->> A'''):
-	F \realizes f -> G \realizes g -> (F ** G) \realizes (f ** g).
-Proof.
-move => Frf Grg [q q''] [a a''] [/=aaq a''aq''] [[a' a''']] [/=faa' ga''a'''].
+  Lemma fprd_rlzr (J: interview) (J': interview) F (f: I ->> I') G (g: J ->> J'):
+    F \realizes f -> G \realizes g -> (F ** G) \realizes (f ** g).
+  Proof.
+    move => Frf Grg [q q''] [a a''] [/=aaq a''aq''] [[a' a''']] [/=faa' ga''a'''].
 have afd: a \from dom f by exists a'.
 have afd': a'' \from dom g by exists a'''.
 have [ex prp]:= Frf q a aaq afd.
@@ -358,21 +372,21 @@ by exists (q', q''').
 Qed.
 
 Lemma fst_rlzr:
-	(@mf_fst Q Q') \realizes (@mf_fst A A': (prod_interview A A') ->> A).
+	(@mf_fst Q Q') \realizes (@mf_fst A A': A * A' ->> A).
 Proof.
 move => [q1 q2] a [/=aaq1 aaq2] ex; split; first by exists q1.
 by move => q' <-; exists a.1.
 Qed.
 
 Lemma snd_rlzr:
-	(@mf_snd Q Q') \realizes (@mf_snd A A': (prod_interview A A') ->> A').
+	(@mf_snd Q Q') \realizes (@mf_snd A A': A * A' ->> A').
 Proof.
 move => [q1 q2] a [/=aaq1 aaq2] ex; split; first by exists q2.
 by move => q' <-; exists a.2.
 Qed.
 
-Lemma fsum_rlzr Q'' (A'': interview Q'') Q''' (A''': interview Q''')
-	F (f: A ->> A') G (g: A'' ->> A'''):
+Lemma fsum_rlzr (J J': interview)
+	F (f: A ->> A') G (g: J ->> J'):
 	F \realizes f -> G \realizes g -> (F +s+ G) \realizes (f +s+ g).
 Proof.
 move => rlzr rlzr'.
@@ -388,31 +402,34 @@ by have [fa []]:= prp Fq' val; exists (inr fa).
 Qed.
 
 Definition mf_inl S T:= F2MF (@ inl S T).
+Arguments mf_inl {S} {T}.
 
 Lemma inl_rlzr:
-  (@mf_inl Q Q') \realizes (@mf_inl A A': A ->> (sum_interview A A')).
+  mf_inl \realizes (@mf_inl I I').
 Proof.
 by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inl a)].
 Qed.
 
 Definition mf_inr S T:= F2MF (@inr S T).
+Arguments mf_inr {S} {T}.
 
 Lemma inr_rlzr:
-  (@mf_inr Q Q') \realizes (@mf_inr A A': A' ->> (sum_interview A A')).
+  mf_inr \realizes (@mf_inr I I').
 Proof.
 by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inr a)].
 Qed.
 
 Definition mf_cons Q := F2MF (fun aL => @cons Q aL.1 aL.2).
+Arguments mf_cons {Q}.
 
 Lemma cons_rlzr:
-	(@mf_cons Q) \realizes (@mf_cons A: (prod_interview A (list_interview A) ->> list_interview A)).
+	mf_cons \realizes (@mf_cons I).
 Proof.
 move => [q K] [a L] [arq LrK] _ ; split; first exact/F2MF_tot.
 by move => _ /= <-; exists (cons a L).
 Qed.
 
-Lemma diag_rlzr: (@mf_diag Q) \realizes (@mf_diag A: A ->> (prod_interview A A)).
+Lemma diag_rlzr: mf_diag \realizes (@mf_diag A).
 Proof. by move => q a aaq _; split => [ | [_ _] [<- <-]]; [exists (q, q) | exists (a, a)]. Qed.
 
 Lemma cnst_rlzr (q': Q') (a': A'):
@@ -435,5 +452,3 @@ by split; first by exists d'.
 Qed.
 *)
 End realizer_functions.
-Arguments fst_rlzr {Q} A {Q'} A'.
-Arguments snd_rlzr {Q} A {Q'} A'.
