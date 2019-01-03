@@ -12,6 +12,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Local Open Scope mf_scope.
+
 Section choice_mf.
 Context (S T: Type).
 Lemma exists_choice (F: S ->> T) (t: T):

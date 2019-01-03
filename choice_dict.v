@@ -49,6 +49,7 @@ Canonical frlzrs_dict:= @lift_ntrvw frlzrs frlzr_sing.
 
 Lemma exte_tot S T: (@mf_exte S T) \is_total.
 Proof. by move => f; exists f => /= s t. Qed.
+
 (*
 Lemma tight_rlzr: (@mf_tight Q Q') \realizes (@mf_tight A A').
 Proof.
