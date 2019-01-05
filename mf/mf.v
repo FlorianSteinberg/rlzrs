@@ -1563,6 +1563,21 @@ Section functions.
     by move => eq s t t'; intros; have /=[ | t'' [fst'' [<- <-]]]//:= (eq s (t, t')).1.
   Qed.
 
+  Definition lcry_f S T R (f: S * T -> R) s t := f (s, t).
+  
+  Definition lcry S T R (f: S * T ->> R) s :=
+    make_mf (fun t fst => f (s,t) fst).
+  
+  Lemma F2MF_lcry R (f: S * T -> R) s:
+    F2MF (lcry_f f s) =~= lcry (F2MF f) s.
+  Proof. done. Qed.
+  
+  Definition lcry_p S T R (f: S * T -> option R) s t := f (s, t).
+  
+  Lemma PF2MF_lcry R (f: S * T -> option R) s:
+    PF2MF (lcry_p f s) =~= lcry (PF2MF f) s.
+  Proof. done. Qed.
+
   Definition uncurry R S T (E: R * S -> T) r:= (fun s => E (r,s)).
   Definition mf_uncurry R S T (E: R * S ->> T) r := make_mf (fun s t => E (r, s) t).
   
