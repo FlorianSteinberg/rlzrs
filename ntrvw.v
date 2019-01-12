@@ -336,15 +336,15 @@ Section realizer_functions.
   Notation Q':= (questions I').
   Notation A':= (answers I').
 
-  Definition cmbn_rlzr (M: interview.struc_of Q) (M': interview.struc_of Q')
+  Definition cmbn_rlzrs (M: interview.struc_of Q) (M': interview.struc_of Q')
              (F: questions (interview.Pack M) ->> questions (interview.Pack M'))
              : questions (cmbn_ntrvw M) ->> questions (cmbn_ntrvw M').
     apply/F.
   Defined.
   
-  Lemma cmbn_smbly_rlzr (M: interview.struc_of Q) (M': interview.struc_of Q')
+  Lemma cmbn_rlzr (M: interview.struc_of Q) (M': interview.struc_of Q')
         F (G: answers (interview.Pack M) ->> answers (interview.Pack M')) f:
-    F \realizes G -> G \realizes f -> (cmbn_rlzr F) \realizes (f: cmbn_ntrvw M ->> cmbn_ntrvw M').
+    F \realizes G -> G \realizes f -> (cmbn_rlzrs F) \realizes (f: cmbn_ntrvw M ->> cmbn_ntrvw M').
   Proof.
     move => FrG Grf q a [d [qnd dna]] afd.
     have [dfd prp]:= Grf d a dna afd.
@@ -353,6 +353,15 @@ Section realizer_functions.
     have [d' [q'nd' Gdd']]:= prp' q' Fqq'.
     have [d''' [d'nd''' fd'd''']]:= prp d' Gdd'.
     by exists d'''; split => //; exists d'.
+  Qed.
+
+  Lemma rlzr_trans (M: interview.struc_of Q) (M': interview.struc_of Q')
+        F (G: answers (interview.Pack M) ->> answers (interview.Pack M')) f H:
+    F \realizes G -> G \realizes f -> H =~= (cmbn_rlzrs F) -> H \realizes (f: cmbn_ntrvw M ->> cmbn_ntrvw M').
+  Proof.
+    move => rlzr rlzr' eq.
+    rewrite eq.
+    exact/cmbn_rlzr/rlzr'.
   Qed.
 
   Lemma fprd_rlzr (J: interview) (J': interview) F (f: I ->> I') G (g: J ->> J'):
