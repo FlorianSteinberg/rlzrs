@@ -1578,6 +1578,20 @@ Section functions.
     PF2MF (lcry_p f s) =~= lcry (PF2MF f) s.
   Proof. done. Qed.
 
+  Definition rcry_f S T R (f: S * T -> R) t s := f (s, t).
+  
+  Definition rcry S T R (f: S * T ->> R) t := make_mf (fun s fst => f (s, t) fst).
+
+  Lemma F2MF_rcry R (f: S * T -> R) t:
+    F2MF (rcry_f f t) =~= rcry (F2MF f) t.
+  Proof. done. Qed.
+
+  Definition rcry_p S T R (f: S * T -> option R) t s := f (s, t).
+  
+  Lemma PF2MF_rcry R (f: S * T -> option R) t:
+    PF2MF (rcry_p f t) =~= rcry (PF2MF f) t.
+  Proof. done. Qed.
+
   Definition uncurry R S T (E: R * S -> T) r:= (fun s => E (r,s)).
   Definition mf_uncurry R S T (E: R * S ->> T) r := make_mf (fun s t => E (r, s) t).
   
