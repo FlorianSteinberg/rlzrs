@@ -384,10 +384,10 @@ Section composition.
     (PF2MF f \o PF2MF g) =~= PF2MF (f \o_p g).
   Proof.
     move => r t.
-    split => [[[s [/=]]]].
-    - case E:  (g r) => // eq.
-      case E': (f s) => // eq' _.
-      by rewrite /pcomp /obind/oapp E eq E'.
+    split.
+    - rewrite <- PF2MF_rcmp_PF2MF.
+      intros [A _].
+      exact A.
     rewrite /pcomp/obind/oapp/=.
     case E: (g r) => [s | ]//.
     case E': (f s) => // eq.
@@ -1415,7 +1415,7 @@ Section lists.
     by have [s val]:= sur t; exists (s :: L).
   Qed.
 End lists.
-  
+
 Section functions.
   Context (S T S' T': Type).
     

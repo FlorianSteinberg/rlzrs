@@ -157,4 +157,3 @@ Section products.
   Proof. by move => -> s; split => [[] | ]. Qed.
 End products.
 Notation "P \x Q" := (set_prod P Q) (at level 40) : mf_scope.
-Print Scopes.
