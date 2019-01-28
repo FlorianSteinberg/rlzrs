@@ -136,16 +136,16 @@ Section realizer.
   Notation Q':= (questions I').
   Notation A':= (answers I').
 
-  Definition rlzr (F: Q ->> Q') (f: A ->> A') :=
+  Definition realizer (F: Q ->> Q') (f: A ->> A') :=
     (forall q a, a \is_response_to q -> a \from dom f ->
                  q \from dom F
                  /\
 		 forall Fq, F q Fq -> exists fa, fa \is_response_to Fq /\ f a fa).
-Notation "F '\realizes' f" := (rlzr F f) (at level 2).
-Definition mf_rlzr := make_mf rlzr.
+Notation "F '\realizes' f" := (realizer F f) (at level 2).
+Definition mf_rlzr := make_mf realizer.
 
 Global Instance rlzr_prpr:
-	Proper (@equiv Q Q' ==> @equiv A A' ==> iff) (@rlzr).
+	Proper (@equiv Q Q' ==> @equiv A A' ==> iff) (@realizer).
 Proof.
 move => F G FeG f g feg.
 split => rlzr q a aaq afd.
@@ -177,8 +177,8 @@ Lemma rlzr_val (F: Q ->> Q') (f: A ->> A') q a Fq: F \realizes f ->
 Proof. by move => Frf arq qfd FqFq; have [_ prp]:= Frf q a arq qfd; apply prp. Qed.
 End realizer.
 Arguments mf_rlzr {I} {I'}.
-Notation "f '\is_realized_by' F" := (rlzr F f) (at level 2).
-Notation "F '\realizes' f" := (rlzr F f) (at level 2).
+Notation "f '\is_realized_by' F" := (realizer F f) (at level 2).
+Notation "F '\realizes' f" := (realizer F f) (at level 2).
 
 Section realizers.
 Lemma id_rlzr_tight Q Q' F G:
@@ -278,23 +278,32 @@ split => ass phi x phinx; last by exists (f x); split => //; apply ass.
 by have [ | fx [cd ->]]:= ass phi x phinx; first by apply F2MF_tot.
 Qed.
 
-Lemma sing_rlzr (f: A ->> A') F: F \is_singlevalued -> f \is_singlevalued ->
+Lemma sing_rlzr_sing (f: A ->> A') F: F \is_singlevalued -> f \is_singlevalued ->
 	F \realizes f
 	<->
 	(forall q a, a \is_response_to q -> a \from dom f -> q \from dom F)
 		/\
 	(forall q a q' a', a \is_response_to q -> f a a' -> F q q' -> a' \is_response_to q').
 Proof.
-move => Fsing fsing.
-split; first by move => Frf; split => [q a arq afd |]; [exact/rlzr_dom/afd | exact/rlzr_val_sing].
-move => [prp cnd] q a aaq afd.
-split => [ | q' Fqq']; first by apply /prp/afd/aaq.
-move: afd => [a' faa'].
-by exists a'; split => //; apply /cnd/Fqq'/faa'.
+  move => Fsing fsing; split => [Frf | [prp cnd] q a aaq afd].
+  - by split => [q a arq afd |]; [exact/rlzr_dom/afd | exact/rlzr_val_sing].
+  split => [ | q' Fqq']; first by apply /prp/afd/aaq.
+  by move: afd => [a' faa'];exists a'; split => //; apply /cnd/Fqq'/faa'.
+Qed.
+
+Lemma sing_rlzr_F2MF (f: A -> A') F: F \is_singlevalued -> F \realizes (F2MF f)
+	<->
+	(forall q a, a \is_response_to q -> q \from dom F)
+		/\
+	(forall q a q', a \is_response_to q -> F q q' -> (f a) \is_response_to q').
+Proof.
+  move => sing; split => [Frf | [prp cnd]].
+  - split => [q a aaq | q a q' arq]; first by apply/(rlzr_dom Frf)/F2MF_dom; first exact/aaq.
+    by apply/(rlzr_val_sing _ Frf)/eq_refl=>//; apply/F2MF_sing.
+  apply/sing_rlzr_sing => //; try by apply/F2MF_sing.
+  by split => [q a arq _ | q a q' _ arq' <-]; [apply/prp/arq | apply/cnd].
 Qed.
 End realizers.
-Notation "f '\is_realized_by' F" := (rlzr F f) (at level 2).
-Notation "F '\realizes' f" := (rlzr F f) (at level 2).
 
 Section morphisms.
   Context (I I': interview).
