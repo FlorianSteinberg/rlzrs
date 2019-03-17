@@ -1,5 +1,6 @@
 From mathcomp Require Import ssreflect ssrfun.
-Require Import all_mf choice_mf ntrvw dict.
+From mf Require Import choice_mf.
+Require Import all_ntrvw dict.
 Import Morphisms.
 Require Import FunctionalExtensionality.
 
