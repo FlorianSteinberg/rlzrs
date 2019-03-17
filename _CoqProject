@@ -1,11 +1,5 @@
 -R . rlzrs
 
-mf/mf_set.v
-mf/mf.v
-all_mf.v
-mf/classical_mf.v
-mf/choice_mf.v
-
 ntrvw.v
 all_ntrvw.v
 dict.v

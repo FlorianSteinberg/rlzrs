@@ -21,8 +21,9 @@
 (*        F \realizes f       == the usual realizability relation.            *)
 (******************************************************************************)
 From mathcomp Require Import ssreflect ssrfun seq.
-Require Import all_mf.
+From mf Require Import all_mf.
 Import Morphisms.
+Local Open Scope mf_scope.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
