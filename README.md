@@ -1,4 +1,4 @@
-rlzrs: A coq library for abstract realizability. The only dependency is ssreflect. It is tested with coq version 8.8 and 8.8.2 and ssreflect version 1.7. To install the library, copy its files to a local folder (best you just clone the repository). Then run "coq_makefile -f _CoqProject -o Makefile" to generate a makefile, and "make" and "make install" and you are all set.
+rlzrs: A coq library for abstract realizability. The only dependency are ssreflect and the mf library that can also be found on github. It is tested with coq version 8.9.0 and ssreflect version 1.7. To install the library, copy its files to a local folder (best you just clone the repository). Then run "make" and "make install" and you are all set.
 
 ------------------------------------
 

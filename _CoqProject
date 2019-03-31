@@ -1,4 +1,6 @@
 -R . rlzrs
+-arg -w -arg -notation-overridden
+-arg -w -arg -masking-absolute-name
 
 ntrvw.v
 all_ntrvw.v
