@@ -7,64 +7,40 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Module dictionary.
-  Record mixin_of Q A (conv: Q ->> A) :=
-    Mixin {
-        answers_unique: conv \is_singlevalued;
-        }.
-
-  Record class_of (I: Type) :=
-    Class {
-        M: interview.struc_of I;
-        mixin: mixin_of (conversation (interview.Pack M));
-        }.
-
-  Structure type :=
-    Pack {I; struc : class_of I}.
-End dictionary.
-
 Section dictionaries.
-  Local Notation dictionary:= dictionary.type.
-  Local Coercion dictionary.struc: dictionary >-> dictionary.class_of.
-  Local Coercion dictionary.mixin: dictionary.class_of >-> dictionary.mixin_of.
-  Local Coercion dictionary.M: dictionary.class_of >-> interview.struc_of.
-  Local Notation description := conversation.
-  Local Notation "a '\is_answer_to' q 'in' D" := (description D q a) (at level 2).
-  Local Notation "a \is_answer_to q" := (a \is_answer_to  q in _) (at level 2).
+  Class Dictionary Q A:=
+    {
+      description: Q ->> A;
+      only_respond: description \is_cototal;
+      answer_unique: description \is_singlevalued;
+    }.
 
-  Lemma answers_unique (D: dictionary): (description D) \is_singlevalued.
-  Proof. by case: D => A [Q []]. Qed.
+  Global Instance D2I `{D: Dictionary}: Interview Q A := Build_Interview only_respond.
 
-  Local Notation answer_unique := answers_unique.
+  Coercion D2I: Dictionary >-> Interview.
 
-  Definition lift_ntrvw (I: interview) (sing: (conversation I) \is_singlevalued): dictionary:=
-    dictionary.Pack (dictionary.Class (dictionary.Mixin sing)).
+  Definition I2D Q A
+        (I: Interview Q A) (sing: (conversation_from I) \is_singlevalued): Dictionary Q A.
+    by exists (conversation_from I); first exact/conv_sur.
+  Defined.
 
   Lemma id_sing S: (@mf_id S) \is_singlevalued.
   Proof. exact/F2MF_sing. Qed.
-  Definition id_dictionary (S: Type): dictionary := @lift_ntrvw (id_interview S) (@id_sing S).
-  Definition get_ntrvw (D: dictionary):= interview.Pack (interview.Struc (dictionary.M D)).
-
-  Context  (D D': dictionary).
-  Local Coercion get_ntrvw: dictionary >-> interview.
   
-  Lemma prod_conv_sing: (prod_conv D D') \is_singlevalued.
-  Proof. exact/fprd_sing/answer_unique/answer_unique. Qed.
-  
-  Definition prod_dictionary_mixin : dictionary.mixin_of (prod_conv D D'):=
-    dictionary.Mixin prod_conv_sing.
+  Definition id_dictionary T: Dictionary T T := Build_Dictionary (@id_sur T) (@id_sing T).
 
-  Canonical prod_dictionary_struc:= dictionary.Class prod_dictionary_mixin.
-  Canonical prod_dictionary:= dictionary.Pack prod_dictionary_struc.
+  Context `{D: Dictionary}.
 
-  Lemma sum_conv_sing: (sum_conv D D') \is_singlevalued.
-  Proof. exact/fsum_sing/answer_unique/answer_unique. Qed.
+  Lemma answers_unique: conversation \is_singlevalued.
+  Proof. exact/answer_unique. Qed.
 
-  Definition sum_dictionary_mixin: dictionary.mixin_of (sum_conv D D'):=
-    dictionary.Mixin sum_conv_sing.
-  
-  Canonical sum_dictionary_struc:= dictionary.Class sum_dictionary_mixin.
-  Canonical sum_dictionary:= dictionary.Pack sum_dictionary_struc.
+  Context  `{D0: Dictionary}.
+
+  Global Instance prod_dictionary: Dictionary (Q * Q0) (A * A0).
+  Proof. exact/I2D/fprd_sing/answer_unique/answer_unique. Defined.
+    
+  Global Instance sum_dictionary: Dictionary (Q + Q0) (A + A0).
+  Proof. exact/I2D/fsum_sing/answer_unique/answer_unique. Defined.
 
   Lemma map_sing S T (f: S ->> T): f \is_singlevalued -> (mf_map f) \is_singlevalued.
   Proof.
@@ -74,18 +50,12 @@ Section dictionaries.
     rewrite (sing q a a' fqa fqa'); f_equal.
     exact/ih.
   Qed.
-  
-  Lemma list_conv_sing: (list_conv D) \is_singlevalued.
-  Proof. exact/map_sing/answers_unique. Qed.
 
-  Definition list_dictionary_mixin: dictionary.mixin_of (list_conv D):=
-    dictionary.Mixin list_conv_sing.
+  Global Instance list_dictionary: Dictionary (list Q) (list A).
+  Proof. exact/I2D/map_sing/answer_unique. Defined.
 
-  Canonical list_dictionary_struc:= dictionary.Class list_dictionary_mixin.
-  Canonical list_dictionary:= dictionary.Pack list_dictionary_struc.
-
-  Lemma rlzr_spec F f: F \realizes (f: get_ntrvw D ->> get_ntrvw D')
-                       <-> ((conversation D') \o F) \tightens (f \o (conversation D)).
+  Lemma rlzr_spec F f: F \realizes f \wrt D \and D0
+                       <-> ((conversation_from D0) \o F) \tightens (f \o (conversation_from D)).
   Proof.
     split => [Frf | tight].
     apply split_tight => q [a' [[a [aaq faa']] subs]].
@@ -96,9 +66,9 @@ Section dictionaries.
     move => d' [[q' [Fqq' d'aq']] subs'].
     split => [ | d daq]; last exact/subs.
     - have [d'' [d''aq' fad'']]:= rlzr_val Frf aaq (subs a aaq) Fqq'.
-      by exists a; split => //; rewrite (answers_unique d'aq' d''aq').
-    move => q a aaq [a' faa'].
-    have qfd: q \from dom (f \o (conversation D)).
+      by exists a; split => //; rewrite (answer_unique d'aq' d''aq').
+      move => q a aaq [a' faa'].
+    have qfd: q \from dom (f \o (conversation_from D)).
     - exists a'; split => [ | d daq]; first by exists a.
       by exists a'; rewrite (answer_unique daq aaq).
     split => [ | q' Fqq'].
@@ -108,39 +78,30 @@ Section dictionaries.
     by exists e'; rewrite (answers_unique aaq daq); first split.
   Qed.
 End dictionaries.
-Notation dictionary:= dictionary.type.
-Coercion dictionary.struc: dictionary >-> dictionary.class_of.
-Coercion dictionary.mixin: dictionary.class_of >-> dictionary.mixin_of.
-Coercion get_ntrvw: dictionary >-> interview.
-Notation description := conversation.
-Notation "a '\is_answer_to' q 'in' D" := (description D q a) (at level 2).
-Notation "a \is_answer_to q" := (a \is_answer_to  q in _) (at level 2).
-Notation answer_unique := answers_unique.
+Notation "a '\is_answer_to' q '\wrt' D" := (description D q a) (at level 2).
 
 Section mf_realizer.
-  Context (D: dictionary) (I: interview).
+  Context `{D: Dictionary} `{I: Interview}.
 
-  Lemma rlzr_F2MF_eq F (f g: answers I -> answers D):
-    F \realizes (F2MF f) -> F \realizes (F2MF g) -> f =1 g.
+  Lemma rlzr_F2MF_eq F f g:
+    F \realizes (F2MF f) \wrt I \and D -> F \realizes (F2MF g) \wrt I \and D -> f =1 g.
   Proof.
     move => rlzr rlzr' a.
     have [q arq]:= conv_sur a.
     have [ | Fq FqFq]:= rlzr_dom rlzr arq; first exact/F2MF_dom.
     have [ | fa [farFq ->]]:= rlzr_val rlzr arq _ FqFq; first exact/F2MF_dom.
     have [ | ga [garFq ->]]:= rlzr_val rlzr' arq _ FqFq; first exact/F2MF_dom.
-    by rewrite (@answers_unique D Fq fa ga).
+    exact/answer_unique/garFq/farFq.
   Qed.
 
-  Lemma rlzr_sur: (@mf_rlzr D I) \is_cototal.
+  Lemma rlzr_sur: (make_mf (realizer D I)) \is_cototal.
   Proof.
     move => f.
-    exists (make_mf (fun q Fq => forall a, a \is_response_to q -> exists fa, fa \is_response_to Fq /\ f a fa)).
+    exists (make_mf (fun q Fq => forall a, a \is_response_to q \wrt D -> exists fa, fa \is_response_to Fq \wrt I /\ f a fa)).
     move => q a qna [fa fafa]; split => [ | Fq FqFq]; last by have [a' []]:= FqFq a qna; exists a'.
     have [Fq Fqnfa]:= conv_sur fa; exists Fq => a' qna'.
-    by exists fa; split => //; rewrite (@answers_unique D q a' a).
+    by exists fa; split => //; rewrite (@answers_unique Q A D q a' a).
   Qed.
 
-  Definition rlzrs_interview_mixin:= interview.Mixin rlzr_sur.
-  Canonical rlzrs_interview_struc:= interview.Struc rlzrs_interview_mixin.
-  Canonical rlzrs_interview:= interview.Pack rlzrs_interview_struc.
-  End mf_realizer.
+  Definition rlzrs_interview := Build_Interview rlzr_sur.
+End mf_realizer.
