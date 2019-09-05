@@ -24,19 +24,17 @@ Unset Printing Implicit Defensive.
 Delimit Scope rlzr_scope with rlzr.
 Local Open Scope rlzr_scope.
 Section interviews.
-  Class Interview Q A :=
+  Class Interview Q A (conversation: Q ->> A) :=
     {
-      conversation: Q ->> A;
       only_respond : conversation \is_cototal;
     }.
 
-  Local Notation conversation_from I:= (@conversation _ _ I).
   Context `{I: Interview}.
 
   Lemma conv_sur: conversation \is_cototal.
   Proof. exact/only_respond. Qed.
 
-  Local Notation "a '\is_response_to' q 'in' I" := (conversation_from I q a) (at level 2).
+  Local Notation "a '\is_response_to' q" := (conversation q a) (at level 2).
 
   Lemma id_sur S: (@mf_id S) \is_cototal.
   Proof. by move => c; exists c. Qed.
@@ -46,65 +44,48 @@ Section interviews.
   Lemma fun_conv_sur (f: A -> Q): (F2MF f\^-1) \is_cototal.
   Proof. exact/cotot_tot_inv/F2MF_tot. Qed.
 
-  Definition  sub_interview (P: subset A): Interview Q {x | x \from P}.
-    exists (make_mf (fun q a => conversation q (sval a))).
-    by move => [a /=_]; apply/conv_sur.
-  Defined.
+  Definition sub_conversation (P: subset A) :=
+    make_mf (fun q (a: {x | x \from P})=> conversation q (sval a)).
 
-  Definition cmbn_ntrvw `{I': Interview A}: Interview Q A0.
-    exists ((conversation_from I') \o_R (conversation_from I)).
-    exact/rcmp_cotot/conv_sur/only_respond.
-  Defined.
+  Global Instance sub_interview (P: subset A): Interview (sub_conversation P).
+  Proof.
+    by split; case => a /= _; apply/conv_sur.
+  Qed.
+
+  Global Instance cmbn_ntrvw `{I0: Interview A}: Interview (conversation0 \o_R conversation).
+  Proof.
+    by split; apply/rcmp_cotot/conv_sur/only_respond.
+  Qed.
+
+  Global Instance list_interview: Interview (mf_map conversation).
+  Proof. by split; apply/map_sur/conv_sur. Qed.
 
   Context `{I0: Interview}.
-  Definition prod_conv := (conversation_from I) ** (conversation_from I0).
 
-  Lemma prod_conv_sur: prod_conv \is_cototal.
-  Proof. by apply/fprd_cotot/only_respond/only_respond. Qed.
-
-  Global Instance prod_interview: Interview (Q * Q0) (A * A0) := Build_Interview prod_conv_sur.
-  
-  Definition sum_conv:= (conversation_from I) +s+ (conversation_from I0).
-  
-  Lemma sum_conv_sur: sum_conv \is_cototal.
+  Global Instance prod_interview: Interview (conversation ** conversation0).
   Proof.
-    move => [a | b] /=.
+    by split; apply/fprd_cotot/only_respond/only_respond.
+  Qed.
+    
+  Global Instance sum_interview: Interview (conversation +s+ conversation0).
+  Proof.
+    split; move => [a | b] /=.
       by have [c cna]:= conv_sur a; exists (inl c).
     by have [c cnab]:= only_respond b; exists (inr c).
   Qed.
-
-  Global Instance sum_interview: Interview (Q + Q0) (A + A0) := Build_Interview sum_conv_sur.
-
-  Definition list_conv := mf_map (conversation_from I).
-
-  Lemma list_conv_sur: list_conv \is_cototal.
-  Proof. exact/map_sur/conv_sur. Qed.
-
-  Global Instance list_interview: Interview (seq Q) (seq A) := Build_Interview list_conv_sur.
 End interviews.
-Notation conversation_from I := (@conversation _ _ I).
-Notation "a '\is_response_to' q '\wrt' I" := (conversation_from I q a) (at level 2).
-Arguments cmbn_ntrvw: clear implicits.
-Arguments cmbn_ntrvw {Q} {A} (I) {A0} (I').
-Notation "I \o_R I'" := (cmbn_ntrvw I I').
-Arguments prod_interview: clear implicits.
-Arguments prod_interview {Q} {A} (I) {Q0} {A0} (I0).
-Notation "I * I0" := (prod_interview I I0): rlzr_scope.
-Arguments sum_interview: clear implicits.
-Arguments sum_interview {Q} {A} (I) {Q0} {A0} (I0).
-Notation "I + I0" := (sum_interview I I0): rlzr_scope.
-Arguments list_interview: clear implicits.
-Arguments list_interview {Q} {A} (I).
-Notation seq I := (list_interview I).
 
 Section realizer.
+  Local Notation "a \is_response_to q \wrt conversation" := (a \from (conversation: _ ->> _) q) (at level 2).
   Context `{I: Interview} `{I0: Interview}.
-
+  Notation conv := conversation.
+  Notation conv0 := conversation0.
+  
   Definition realizer (F: Q ->> Q0) (f: A ->> A0) :=
-    (forall q a, a \is_response_to q \wrt I -> a \from dom f ->
+    (forall q a, a \is_response_to q \wrt conv -> a \from dom f ->
                  q \from dom F
                  /\
-		 forall Fq, F q Fq -> exists fa, fa \is_response_to Fq \wrt I0 /\ f a fa).
+		 forall Fq, F q Fq -> exists fa, fa \is_response_to Fq \wrt conv0 /\ f a fa).
 
   Local Notation "F '\realizes' f" := (realizer F f) (at level 2).
   
@@ -128,30 +109,29 @@ Section realizer.
   Qed.
   
   Lemma split_rlzr (F: Q ->> Q0) (f: A ->> A0):
-		(forall q a, a \is_response_to q \wrt I -> a \from dom f -> q \from dom F) ->
-		(forall q a, a \is_response_to q \wrt I -> a \from dom f -> forall Fq, F q Fq -> exists fa, fa \is_response_to Fq \wrt I0 /\ f a fa) ->
+		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> q \from dom F) ->
+		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> forall Fq, F q Fq -> exists fa, fa \is_response_to Fq \wrt conv0 /\ f a fa) ->
                 F \realizes f.
   Proof.
     by move => dm val q a arq afd; split => [ | Fq FqFq]; [apply/dm/afd | apply/val/FqFq].
   Qed.
 
   Lemma rlzr_dom (F: Q ->> Q0) (f: A ->> A0) q a: F \realizes f ->
-	a \is_response_to q \wrt I -> a \from dom f -> q \from dom F.
+	a \is_response_to q \wrt conv -> a \from dom f -> q \from dom F.
   Proof. by move => Frf arq qfd; have []:= Frf q a arq qfd. Qed.
 
   Lemma rlzr_val (F: Q ->> Q0) (f: A ->> A0) q a Fq: F \realizes f ->
-	            a \is_response_to q \wrt I -> a \from dom f -> F q Fq ->
-                    exists fa, fa \is_response_to Fq \wrt I0 /\ f a fa.
+	            a \is_response_to q \wrt conv -> a \from dom f -> F q Fq ->
+                    exists fa, fa \is_response_to Fq \wrt conv0 /\ f a fa.
   Proof. by move => Frf arq qfd FqFq; have [_ prp]:= Frf q a arq qfd; apply prp. Qed.
 End realizer.
-Notation "f '\is_realized_by' F" := (realizer F f) (at level 2).
 Arguments realizer: clear implicits.
-Arguments realizer {Q} {A} (I) {Q0} {A0} (I0).
-Notation "F '\realizes' f \wrt I \and I0" := (realizer I  I0 F f) (at level 2).
+Arguments realizer {Q} {A} (conversation) {Q0} {A0} (conversation0).
+Notation "f '\realized_by' F \wrt conv \and conv0" := (realizer conv conv0 F f) (at level 2).
 
 Section realizers.
-  Lemma id_rlzr_tight Q Q' F G:
-    F \realizes G \wrt (id_interview Q) \and (id_interview Q') <-> F \tightens G.
+  Lemma id_rlzr_tight Q Q' (F G: Q ->> Q'):
+    G \realized_by F \wrt mf_id \and mf_id <-> F \tightens G.
   Proof.
     split =>[rlzr s sfd | tight q a <- afd].
     - split => [ | t Fst]; first exact /(rlzr_dom rlzr)/sfd.
@@ -160,10 +140,10 @@ Section realizers.
     by exists Fq; split => //; apply/tight_val/FqFq.
   Qed.
 
-  Context `{I: Interview} `{I0: Interview}.
-
-  Lemma rlzr_val_sing (f: A ->> A0) F: f \is_singlevalued -> F \realizes f \wrt I \and I0 ->
-      forall q a q' a', a \is_response_to q \wrt I -> f a a' -> F q q' -> a' \is_response_to q' \wrt I0.
+  Context Q A Q0 A0 (conv: Q ->> A) (conv0: Q0 ->> A0).
+  
+  Lemma rlzr_val_sing (f: A ->> A0) F: f \is_singlevalued -> f \realized_by F \wrt conv \and conv0 ->
+      forall q a q' a', conv q a -> f a a' -> F q q' -> conv0 q' a'.
   Proof.
     move => sing rlzr q a q' a' aaq faa' Fqq'.
     have [ | _ prp]:= rlzr q a aaq; first by exists a'.
@@ -171,10 +151,10 @@ Section realizers.
     by rewrite (sing a a' d').
   Qed.
 
-  Lemma rlzr_comp `{I1: Interview} G F f g:
-    G \realizes g \wrt I0 \and I1 ->
-    F \realizes f \wrt I \and I0 ->
-    (G \o F) \realizes (g \o f) \wrt I \and I1.
+  Lemma rlzr_comp Q1 A1 (conv1: Q1 ->> A1) G F f g:
+    g \realized_by G \wrt conv0 \and conv1 ->
+    f \realized_by F \wrt conv \and conv0 ->
+    (g \o f) \realized_by (G \o F) \wrt conv \and conv1.
   Proof.
     move => Grg Frf q a arq [gfa [[fa [fafa gfagfa]]] subs].
     have afd: a \from dom f by exists fa.
@@ -193,18 +173,18 @@ Section realizers.
     by exists z'.
   Qed.
 
-  Lemma rlzr_tight F f g: F \realizes f \wrt I \and I0 ->
-                          f \tightens g -> F \realizes g \wrt I \and I0.
+  Lemma rlzr_tight F f g: f \realized_by F \wrt conv \and conv0 ->
+                          f \tightens g -> g \realized_by F \wrt conv \and conv0.
   Proof.
     move => Frf tight q a arq afd.
     have afd': a \from dom f by apply /tight_dom/afd.
-    split => [ | Fq FqFq]; first exact/rlzr_dom/afd'.
+    split => [ | Fq FqFq]; first exact/rlzr_dom/afd'/arq/Frf.
     have [fa [farFq fafa]]:= rlzr_val Frf arq afd' FqFq.
     by exists fa; split => //; apply/tight_val/fafa.
   Qed.
 
-  Lemma tight_rlzr F G f: F \realizes f \wrt I \and I0 -> G \tightens F ->
-                          G \realizes f \wrt I \and I0.
+  Lemma tight_rlzr F G f: f \realized_by F \wrt conv \and conv0 -> G \tightens F ->
+                          f \realized_by G \wrt conv \and conv0.
   Proof.
     move => Frf tight q a qna afd.
     have [qfd prp]:= Frf q a qna afd.
@@ -212,23 +192,23 @@ Section realizers.
     by have:= prp q' ((tight_val tight) qfd q' Gqq').
   Qed.
 
-  Lemma icf_rlzr F f g: F \realizes f \wrt I \and I0 ->
-                        g \is_choice_for F -> (F2MF g) \realizes f \wrt I \and I0.
+  Lemma icf_rlzr F f g: f \realized_by F \wrt conv \and conv0 ->
+                        g \is_choice_for F -> f \realized_by (F2MF g) \wrt conv \and conv0.
   Proof. by move => Frf /icf_spec tight; apply/tight_rlzr/tight. Qed.
 
   Lemma F2MF_rlzr F f:
-	(F2MF F) \realizes f \wrt I \and I0 <->
-	(forall q a, a \is_response_to q \wrt I -> a \from dom f ->
-		exists a', a' \is_response_to (F q) \wrt I0 /\ f a a').
+	f \realized_by (F2MF F) \wrt conv \and conv0 <->
+	(forall q a, conv q a -> a \from dom f ->
+		exists a', conv0 (F q) a' /\ f a a').
   Proof.
     split => rlzr q a aaq afd; first by apply/rlzr_val; first apply rlzr; first apply aaq.
     by split => [ | Fq <-]; [rewrite F2MF_dom | apply/rlzr].
   Qed.
-
-  Lemma rlzr_F2MF F f: F \realizes (F2MF f) \wrt I \and I0 <->
-    forall q a, a \is_response_to q \wrt I -> q \from dom F
+  
+  Lemma rlzr_F2MF F f: (F2MF f) \realized_by F \wrt conv \and conv0 <->
+    forall q a, a \from conv q -> q \from dom F
                    /\
-	           forall q', F q q' -> (f a) \is_response_to q' \wrt I0.
+	           forall q', q' \from F q -> (f a) \from conv0 q'.
   Proof.
     split => [ | rlzr q a aaq _].
     split; first by apply/ rlzr_dom; [apply H | apply H0 | apply F2MF_tot ].
@@ -237,8 +217,8 @@ Section realizers.
     by exists (f a); split => //; apply (rlzr q a aaq).2.
   Qed.
 
-  Lemma F2MF_rlzr_F2MF F f: (F2MF F) \realizes (F2MF f) \wrt I \and I0 <->
-        forall q a, a \is_response_to q \wrt I -> (f a) \is_response_to (F q) \wrt I0.
+  Lemma F2MF_rlzr_F2MF F f: (F2MF f) \realized_by (F2MF F) \wrt conv \and conv0 <->
+        forall q a, a \from conv q -> (f a) \from conv0 (F q).
   Proof.
     rewrite F2MF_rlzr.
     split => ass phi x phinx; last by exists (f x); split => //; apply ass.
@@ -246,24 +226,24 @@ Section realizers.
   Qed.
 
   Lemma sing_rlzr_sing F f: F \is_singlevalued -> f \is_singlevalued ->
-	F \realizes f \wrt I \and I0
+	f \realized_by F \wrt conv \and conv0
 	<->
-	(forall q a, a \is_response_to q \wrt I -> a \from dom f -> q \from dom F)
+	(forall q a, a \from conv q -> a \from dom f -> q \from dom F)
 		/\
-	        (forall q a q' a', a \is_response_to q \wrt I -> f a a' -> F q q' ->
-                                   a' \is_response_to q' \wrt I0).
+	        (forall q a q' a', a \from conv q -> a' \from f a -> q' \from F q ->
+                                   a' \from conv0 q').
   Proof.
     move => Fsing fsing; split => [Frf | [prp cnd] q a aaq afd].
-    - by split => [q a arq afd |]; [exact/rlzr_dom/afd | exact/rlzr_val_sing].
+    - by split => [q a arq afd |]; [apply/rlzr_dom/afd/arq/Frf | exact/rlzr_val_sing].
     split => [ | q' Fqq']; first by apply /prp/afd/aaq.
     by move: afd => [a' faa'];exists a'; split => //; apply /cnd/Fqq'/faa'.
   Qed.
 
-  Lemma sing_rlzr_F2MF F f: F \is_singlevalued -> F \realizes (F2MF f) \wrt I \and I0
+  Lemma sing_rlzr_F2MF F f: F \is_singlevalued -> (F2MF f) \realized_by F \wrt conv \and conv0
 	<->
-	(dom (conversation_from I) \is_subset_of dom F)
+	(dom conv \is_subset_of dom F)
 		/\
-	(forall q a q', a \is_response_to q \wrt I -> F q q' -> (f a) \is_response_to q' \wrt I0).
+	(forall q a q', a \from conv q -> q' \from F q -> (f a) \from conv0 q').
   Proof.
     move => sing; split => [Frf | [prp cnd]].
     - split => [q [a aaq] | q a q' arq]; first by apply/(rlzr_dom Frf)/F2MF_dom; first exact/aaq.
@@ -271,44 +251,95 @@ Section realizers.
     apply/sing_rlzr_sing => //; try by apply/F2MF_sing.
     by split => [q a arq _ | q a q' _ arq' <-]; [apply/prp; exists a | apply/cnd].
   Qed.
+
+  Lemma PF2MF_rlzr_F2MF F f: (F2MF f) \realized_by (PF2MF F) \wrt conv \and conv0
+                             <->
+                             dom conv \is_subset_of dom F
+                             /\
+                             (forall q a, a \from conv (sval q) -> (f a) \from conv0 (F q)).
+  Proof.
+    rewrite rlzr_F2MF.    
+    split => [rlzr | [subs val] q a afd].
+    - split => [q [a qna] | q a afd]; first by have []:= rlzr q a qna.
+      have [[q' [qfd eq]] val]:= rlzr (sval q) a afd; apply/val.
+      by case: q qfd eq afd val => q qfd; exists qfd.
+    split => [ | Fq [qfd <-]]; first by apply/subs; exists a.
+    exact/val.
+  Qed.
 End realizers.
 
 Section morphisms.
   Context `{I: Interview} `{I0: Interview}.
-
-  Definition mf_morphism f := exists F, F \realizes f \wrt I \and I0.
-
-  Definition mf_morphisms := {f | mf_morphism f}.
+  Notation conv:= conversation.
+  Notation conv0:= conversation0.
   
-  Definition mf_mrph_conv:= make_mf (fun F (f: mf_morphisms) => F \realizes (projT1 f) \wrt I \and I0).
+  Definition mf_morphism f := exists F, f \realized_by F \wrt conv \and conv0.
   
-  Lemma mf_mrph_conv_sur : mf_mrph_conv \is_cototal.
-  Proof. by move => [f [F rlzr]]; exists F. Qed.
-
-  Definition mf_morphisms_interview: Interview (Q ->> Q0) mf_morphisms :=
-    Build_Interview mf_mrph_conv_sur.
+  Definition mf_mrph_conv:=
+    make_mf (fun F (f: {f | mf_morphism f}) => (projT1 f) \realized_by F \wrt conv \and conv0).
+  
+  Global Instance mf_morphisms : Interview mf_mrph_conv.
+  Proof. by split; case => f [F rlzr]; exists F. Qed.
   
   Definition morphism f := mf_morphism (F2MF f).
   
-  Definition morphisms := {f | morphism f}.
+  Definition mrph_conv:= make_mf (fun F (f: {f | morphism f}) => (F2MF (projT1 f)) \realized_by F \wrt conv \and conv0).
 
-  Definition mrph_conv:= make_mf (fun F (f: morphisms) => F \realizes (F2MF (projT1 f)) \wrt I \and I0).
-
-  Lemma mrph_conv_sur: mrph_conv \is_cototal.
-  Proof. by move => [f [F rlzr]]; exists F. Qed.
+  Global Instance morphisms: Interview (mrph_conv).
+  Proof. by split; case => f [F rlzr]; exists F. Qed.
 End morphisms.
 
 Section realizer_functions.
-  Context `{I : Interview}.
+  Context Q A (conv: Q ->> A).
   
-  Lemma id_rlzr: mf_id \realizes (@mf_id A) \wrt I \and I.
+  Lemma id_rlzr: mf_id \realized_by (@mf_id Q) \wrt conv \and conv.
   Proof. by move => q a qna [d /= eq]; split => [ | _ <-]; [exists q | exists a]. Qed.
 
-  Context `{I0: Interview}.
+  Definition mf_cons Q := F2MF (fun aL => @cons Q aL.1 aL.2).
+  Arguments mf_cons {Q}.
+
+  Lemma cons_rlzr: mf_cons \realized_by mf_cons \wrt conv ** mf_map conv \and (mf_map conv).
+  Proof.
+    move => [q K] [a L] [arq LrK] _ ; split; first exact/F2MF_tot.
+    by move => _ /= <-; exists (cons a L).
+  Qed.
+
+  Lemma diag_rlzr: mf_diag \realized_by mf_diag \wrt conv \and (conv ** conv).
+  Proof. by move => q a aaq _; split => [ | [_ _] [<- <-]]; [exists (q, q) | exists (a, a)]. Qed.
+
+  Context Q0 A0 (conv0: Q0 ->> A0).
+
+  Lemma cnst_rlzr q' a':
+	a' \from conv0 q' -> (mf_cnst a') \realized_by (mf_cnst q') \wrt conv \and conv0.
+  Proof. by move => a'aq' q a aaq _; split => [ | _ <-]; [exists q' | exists a']. Qed.
+
+  Lemma fst_rlzr: mf_fst \realized_by mf_fst \wrt conv ** conv0 \and conv.
+  Proof.
+    move => [q1 q2] a [/=aaq1 aaq2] ex; split; first by exists q1.
+    by move => q' <-; exists a.1.
+  Qed.
+
+  Lemma snd_rlzr: mf_snd \realized_by mf_snd \wrt conv ** conv0 \and conv0.
+  Proof.
+    move => [q1 q2] a [/=aaq1 aaq2] ex; split; first by exists q2.
+    by move => q' <-; exists a.2.
+  Qed.
+
+  Definition mf_inl S T:= F2MF (@ inl S T).
+  Arguments mf_inl {S} {T}.
+
+  Lemma inl_rlzr: mf_inl \realized_by mf_inl \wrt conv \and (conv +s+ conv0).
+  Proof. by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inl a)]. Qed.
   
-  Lemma cmbn_rlzr `{I1: Interview A} `{I2: Interview A0} F G f:
-    F \realizes G \wrt I \and I0 -> G \realizes f \wrt I1 \and I2 ->
-    F \realizes f \wrt (I \o_R I1) \and (I0 \o_R I2).
+  Definition mf_inr S T:= F2MF (@inr S T).
+  Arguments mf_inr {S} {T}.
+
+  Lemma inr_rlzr: mf_inr \realized_by mf_inr \wrt conv0 \and (conv +s+ conv0).
+  Proof. by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inr a)]. Qed.
+
+  Lemma cmbn_rlzr D D0 (conv': A ->> D) (conv0': A0 ->> D0) F G f:
+    G \realized_by F \wrt conv \and conv0 -> f \realized_by G \wrt conv' \and conv0' ->
+    f \realized_by F \wrt (conv' \o_R conv) \and (conv0' \o_R conv0).
   Proof.
     move => FrG Grf q a [d [qnd dna]] afd.
     have [dfd prp]:= Grf d a dna afd.
@@ -319,8 +350,11 @@ Section realizer_functions.
     by exists d'''; split => //; exists d'.
   Qed.
 
-  Lemma fprd_rlzr `{I1: Interview} `{I2: Interview} F f G g:
-    F \realizes f \wrt I \and I1 -> G \realizes g \wrt I0 \and I2 -> (F ** G) \realizes (f ** g) \wrt (I * I0) \and (I1 * I2).
+  Context Q1 A1 Q2 A2 (conv1: Q1 ->> A1) (conv2: Q2 ->> A2).
+
+  Lemma fprd_rlzr F f G g:
+    f \realized_by F \wrt conv \and conv1 -> g \realized_by G \wrt conv0 \and conv2 ->
+    (f ** g) \realized_by (F ** G) \wrt (conv ** conv0) \and (conv1 ** conv2).
   Proof.
     move => Frf Grg [q q''] [a a''] [/=aaq a''aq''] [[a' a''']] [/=faa' ga''a'''].
     have afd: a \from dom f by exists a'.
@@ -335,21 +369,9 @@ Section realizer_functions.
     by exists (q', q''').
   Qed.
 
-  Lemma fst_rlzr: mf_fst \realizes mf_fst \wrt I * I0 \and I.
-  Proof.
-    move => [q1 q2] a [/=aaq1 aaq2] ex; split; first by exists q1.
-    by move => q' <-; exists a.1.
-  Qed.
-
-  Lemma snd_rlzr: mf_snd \realizes mf_snd \wrt I * I0 \and I0.
-  Proof.
-    move => [q1 q2] a [/=aaq1 aaq2] ex; split; first by exists q2.
-    by move => q' <-; exists a.2.
-  Qed.
-
-  Lemma fsum_rlzr `{I1: Interview} `{I2: Interview} F f G g:
-    F \realizes f \wrt I \and I1 -> G \realizes g \wrt I0 \and I2 ->
-    (F +s+ G) \realizes (f +s+ g) \wrt I + I0 \and (I1 + I2).
+  Lemma fsum_rlzr F f G g:
+    f \realized_by F \wrt conv \and conv1 -> g \realized_by G \wrt conv0 \and conv2 ->
+    (f +s+ g) \realized_by (F +s+ G) \wrt conv +s+ conv0 \and (conv1 +s+ conv2).
   Proof.
     move => rlzr rlzr'.
     case => q.
@@ -362,35 +384,7 @@ Section realizer_functions.
     split => [ | []// Fq' val]; first by exists (inr q').
     by have [fa []]:= prp Fq' val; exists (inr fa).
   Qed.
-
-  Definition mf_inl S T:= F2MF (@ inl S T).
-  Arguments mf_inl {S} {T}.
-
-  Lemma inl_rlzr: mf_inl \realizes mf_inl \wrt I \and (I + I0).
-  Proof. by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inl a)]. Qed.
   
-  Definition mf_inr S T:= F2MF (@inr S T).
-  Arguments mf_inr {S} {T}.
-
-  Lemma inr_rlzr: mf_inr \realizes mf_inr \wrt I0 \and (I + I0).
-  Proof. by move => q a; split => [ | []// _ [<-]]; [exact/F2MF_dom |exists (inr a)]. Qed.
-
-  Definition mf_cons Q := F2MF (fun aL => @cons Q aL.1 aL.2).
-  Arguments mf_cons {Q}.
-
-  Lemma cons_rlzr: mf_cons \realizes mf_cons \wrt I * seq I \and (seq I).
-  Proof.
-    move => [q K] [a L] [arq LrK] _ ; split; first exact/F2MF_tot.
-    by move => _ /= <-; exists (cons a L).
-  Qed.
-
-  Lemma diag_rlzr: mf_diag \realizes mf_diag \wrt I \and (I * I).
-  Proof. by move => q a aaq _; split => [ | [_ _] [<- <-]]; [exists (q, q) | exists (a, a)]. Qed.
-
-  Lemma cnst_rlzr q' a':
-	a' \is_response_to q' \wrt I0 -> (mf_cnst q') \realizes mf_cnst a' \wrt I \and I0.
-  Proof. by move => a'aq' q a aaq _; split => [ | _ <-]; [exists q' | exists a']. Qed.
-
 (*
 Lemma rlzr_comp_codom Q'' (D'': assembly Q'') G F (f: A ->> A') (g:  A'->> answers D''):
 	G \realizes (g|_(codom f)) -> F \realizes f -> (G o F) \realizes (g o f).
