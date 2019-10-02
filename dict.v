@@ -47,7 +47,7 @@ Section dictionaries.
     
   Global Instance sum_dictionary: Dictionary (description +s+ description).
   Proof. exact/I2D/fsum_sing/answer_unique/answer_unique. Defined.
-  
+
   Lemma rlzr_spec F f: f \realized_by F \wrt description \and description0
                        <-> (description0 \o F) \tightens (f \o description).
   Proof.

@@ -1,1 +1,1 @@
-Require Export all_ntrvw dict.
+Require Export all_ntrvw dict data_spaces.
