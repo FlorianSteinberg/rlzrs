@@ -14,38 +14,36 @@ Section dictionaries.
       answer_unique: description \is_singlevalued;
     }.
 
-  Global Instance D2I `{D: Dictionary}: Interview description := Build_Interview only_respond.
+  Global Instance D2I `{D: Dictionary}: Interview description := only_respond.
 
   Definition I2D Q A (conv: Q ->> A) (I: Interview conv) (sing: conv \is_singlevalued): Dictionary conv.
-    by split; first exact/conv_sur.
+    by split; surjectivity.
   Defined.
 
   Lemma id_sing S: (@mf_id S) \is_singlevalued.
-  Proof. exact/F2MF_sing. Qed.
+  Proof. by determinism. Qed.
   
-  Context `{D: Dictionary}.
+  Context `{D: Dictionary}. 
 
   Lemma answers_unique: description \is_singlevalued.
   Proof. exact/answer_unique. Qed.
 
-  Lemma map_sing S T (f: S ->> T): f \is_singlevalued -> (mf_map f) \is_singlevalued.
-  Proof.
-    move => sing L K K'.
-    elim : L K K' => [ | q L ih]; first by case => //; case.    
-    case => // a K; case => // a' K' /=[fqa lst] [fqa' lst'].
-    rewrite (sing q a a' fqa fqa'); f_equal.
-    exact/ih.
-  Qed.
+  Ltac determinism := repeat mf.determinism || apply answer_unique.
 
   Global Instance list_dictionary: Dictionary (mf_map description).
-  Proof. exact/I2D/map_sing/answer_unique. Defined.
+  Proof. by apply/I2D; determinism. Defined.
+
+  Definition combine_dictionaries `{D0: Dictionary A} :
+    Dictionary (description0 \o_R description).
+    by split; [surjectivity | determinism].
+  Defined.
 
   Context  `{D0: Dictionary}.
-
-  Global Instance prod_dictionary: Dictionary (description ** description).
+  
+  Global Instance prod_dictionary: Dictionary (description ** description0).
   Proof. exact/I2D/fprd_sing/answer_unique/answer_unique. Defined.
     
-  Global Instance sum_dictionary: Dictionary (description +s+ description).
+  Global Instance sum_dictionary: Dictionary (description +s+ description0).
   Proof. exact/I2D/fsum_sing/answer_unique/answer_unique. Defined.
 
   Lemma rlzr_spec F f: f \realized_by F \wrt description \and description0
@@ -59,7 +57,7 @@ Section dictionaries.
       by have [e' [e'aq' fae']]:= prp r' Fqr'; exists e'.
     move => d' [[q' [Fqq' d'aq']] subs'].
     split => [ | d daq]; last exact/subs.
-    - have [d'' [d''aq' fad'']]:= rlzr_val Frf aaq (subs a aaq) Fqq'.
+    - have [d'' [fad'' d''aq']]:= rlzr_val Frf aaq (subs a aaq) Fqq'.
       by exists a; split => //; rewrite (answer_unique d'aq' d''aq').
       move => q a aaq [a' faa'].
     have qfd: q \from dom (f \o description).
@@ -83,8 +81,8 @@ Section mf_realizer.
     move => rlzr rlzr' a.
     have [q arq]:= conv_sur a.
     have [ | Fq FqFq]:= rlzr_dom rlzr arq; first exact/F2MF_dom.
-    have [ | fa [farFq ->]]:= rlzr_val rlzr arq _ FqFq; first exact/F2MF_dom.
-    have [ | ga [garFq ->]]:= rlzr_val rlzr' arq _ FqFq; first exact/F2MF_dom.
+    have [ | fa [-> farFq]]:= rlzr_val rlzr arq _ FqFq; first exact/F2MF_dom.
+    have [ | ga [-> garFq]]:= rlzr_val rlzr' arq _ FqFq; first exact/F2MF_dom.
     exact/answer_unique/garFq/farFq.
   Qed.
 
@@ -97,5 +95,5 @@ Section mf_realizer.
     by exists fa; split => //; rewrite (answers_unique qna' qna).
   Qed.
 
-  Definition rlzrs_interview := Build_Interview rlzr_sur.
+  Definition rlzrs_interview : Interview _ := rlzr_sur.
 End mf_realizer.

@@ -24,56 +24,51 @@ Unset Printing Implicit Defensive.
 Delimit Scope rlzr_scope with rlzr.
 Local Open Scope rlzr_scope.
 Section interviews.
-  Class Interview Q A (conversation: Q ->> A) :=
-    {
-      only_respond : conversation \is_cototal;
-    }.
+  Class Interview Q A (conversation: Q ->> A) := only_respond : conversation \is_cototal.
 
   Context `{I: Interview}.
 
   Lemma conv_sur: conversation \is_cototal.
-  Proof. exact/only_respond. Qed.
+  Proof. exact only_respond. Qed.
 
   Local Notation "a '\is_response_to' q" := (conversation q a) (at level 2).
 
   Lemma id_sur S: (@mf_id S) \is_cototal.
   Proof. by move => c; exists c. Qed.
 
-  Definition id_interview S:= Build_Interview (@id_sur S).
+  Definition id_interview S: Interview (@mf_id S):= (@id_sur S).
 
   Lemma fun_conv_sur (f: A -> Q): (F2MF f\^-1) \is_cototal.
   Proof. exact/cotot_tot_inv/F2MF_tot. Qed.
+
+  Ltac surjectivity := repeat mf.surjectivity || apply/conv_sur.
 
   Definition sub_conversation (P: subset A) :=
     make_mf (fun q (a: {x | x \from P})=> conversation q (sval a)).
 
   Global Instance sub_interview (P: subset A): Interview (sub_conversation P).
-  Proof.
-    by split; case => a /= _; apply/conv_sur.
-  Qed.
+  Proof. by case => a /= _; surjectivity. Qed.
 
   Global Instance cmbn_ntrvw `{I0: Interview A}: Interview (conversation0 \o_R conversation).
-  Proof.
-    by split; apply/rcmp_cotot/conv_sur/only_respond.
-  Qed.
+  Proof. by surjectivity. Qed.
 
   Global Instance list_interview: Interview (mf_map conversation).
-  Proof. by split; apply/map_sur/conv_sur. Qed.
+  Proof. by surjectivity. Qed.
 
   Context `{I0: Interview}.
 
   Global Instance prod_interview: Interview (conversation ** conversation0).
-  Proof.
-    by split; apply/fprd_cotot/only_respond/only_respond.
-  Qed.
+  Proof. by surjectivity. Qed.
     
   Global Instance sum_interview: Interview (conversation +s+ conversation0).
   Proof.
-    split; move => [a | b] /=.
+    move => [a | b] /=.
       by have [c cna]:= conv_sur a; exists (inl c).
     by have [c cnab]:= only_respond b; exists (inr c).
   Qed.
 End interviews.
+
+Ltac surjectivity := repeat mf.surjectivity || apply/conv_sur.
 
 Section realizer.
   Local Notation "a \is_response_to q \wrt conversation" := (a \from (conversation: _ ->> _) q) (at level 2).
@@ -85,10 +80,26 @@ Section realizer.
     (forall q a, a \is_response_to q \wrt conv -> a \from dom f ->
                  q \from dom F
                  /\
-		 forall Fq, F q Fq -> exists fa, fa \is_response_to Fq \wrt conv0 /\ f a fa).
+		 forall Fq, Fq \from F q -> exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv0).
 
-  Local Notation "F '\realizes' f" := (realizer F f) (at level 2).
-  
+  Local Notation "F '\realizes' f" := (realizer F f) (at level 30).
+
+  Lemma rlzr_spec_dep F f:
+    F \realizes f <->
+    forall (a: dom f) (q: conv\^-1 (sval a)), (sval q) \from dom F
+                                         /\
+                                         forall (Fq: F (sval q)), exists (fa: f (sval a)),
+                                             (sval fa) \is_response_to (sval Fq) \wrt conv0.
+  Proof.
+    split => [rlzr [a afd] [q/= aaq] | rlzr q a aaq afd].
+    - have [qfd prp]//:= rlzr q a aaq afd.
+      split => //; case => Fq val.
+      by have [fa [val' faaFq]]:= prp Fq val; exists (exist _ _ val').
+    have aaq': q \from conv\^-1 a by trivial.  
+    have [qfd prp]:= rlzr (exist _ _ afd) (exist _ _ aaq').
+    by split => // Fq val; have [/=[fa]]:= prp (exist _ _ val); exists fa.
+  Qed.
+
   Global Instance rlzr_prpr:
     Proper (@equiv Q Q0 ==> @equiv A A0 ==> iff) (@realizer).
   Proof.
@@ -110,7 +121,7 @@ Section realizer.
   
   Lemma split_rlzr (F: Q ->> Q0) (f: A ->> A0):
 		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> q \from dom F) ->
-		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> forall Fq, F q Fq -> exists fa, fa \is_response_to Fq \wrt conv0 /\ f a fa) ->
+		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> forall Fq, Fq \from F q -> exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv0) ->
                 F \realizes f.
   Proof.
     by move => dm val q a arq afd; split => [ | Fq FqFq]; [apply/dm/afd | apply/val/FqFq].
@@ -121,8 +132,8 @@ Section realizer.
   Proof. by move => Frf arq qfd; have []:= Frf q a arq qfd. Qed.
 
   Lemma rlzr_val (F: Q ->> Q0) (f: A ->> A0) q a Fq: F \realizes f ->
-	            a \is_response_to q \wrt conv -> a \from dom f -> F q Fq ->
-                    exists fa, fa \is_response_to Fq \wrt conv0 /\ f a fa.
+	            a \is_response_to q \wrt conv -> a \from dom f -> Fq \from F q ->
+                    exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv0.
   Proof. by move => Frf arq qfd FqFq; have [_ prp]:= Frf q a arq qfd; apply prp. Qed.
 End realizer.
 Arguments realizer: clear implicits.
@@ -135,7 +146,7 @@ Section realizers.
   Proof.
     split =>[rlzr s sfd | tight q a <- afd].
     - split => [ | t Fst]; first exact /(rlzr_dom rlzr)/sfd.
-      by have [ | Fs [<-]]// :=rlzr_val rlzr _ sfd Fst.
+      by have [ | Fs [vl ->]] //:= rlzr_val rlzr _ sfd Fst.
     split => [ | Fq FqFq]; first exact/tight_dom/afd.
     by exists Fq; split => //; apply/tight_val/FqFq.
   Qed.
@@ -161,15 +172,15 @@ Section realizers.
     split; last first.
       move => GFq [[Fq [FqFq GFqGFq]] subs'].
       have [d' [d'aq' fad']]:= rlzr_val Frf arq afd FqFq.
-      have [d'' [d''aq'' gd'd'']]:= rlzr_val Grg d'aq' (subs d' fad') GFqGFq.
+      have [d'' [d''aq'' gd'd'']]:= rlzr_val Grg fad' (subs d' d'aq') GFqGFq.
       by exists d''; split => //; split; first by exists d'.
     have [[q' Fqq'] prp]:= Frf q a arq afd.
     have [d' [d'aq' fad']]:= prp q' Fqq'.
-    have [[q'' Gq'q''] prp']:= Grg q' d' d'aq' (subs d' fad').
+    have [[q'' Gq'q''] prp']:= Grg q' d' fad' (subs d' d'aq').
     have [d'' [d''aq'' gd'd'']]:= prp' q'' Gq'q''.
     exists q''; split => [ | p' Fqp']; first by exists q'.
     have [e' [e'ap' fae']]:= prp p' Fqp'.
-    have [[z' Gpz']]:= Grg p' e' e'ap' (subs e' fae').
+    have [[z' Gpz']]:= Grg p' e' fae' (subs e' e'ap').
     by exists z'.
   Qed.
 
@@ -179,7 +190,7 @@ Section realizers.
     move => Frf tight q a arq afd.
     have afd': a \from dom f by apply /tight_dom/afd.
     split => [ | Fq FqFq]; first exact/rlzr_dom/afd'/arq/Frf.
-    have [fa [farFq fafa]]:= rlzr_val Frf arq afd' FqFq.
+    have [fa [fafa farFq]]:= rlzr_val Frf arq afd' FqFq.
     by exists fa; split => //; apply/tight_val/fafa.
   Qed.
 
@@ -198,10 +209,10 @@ Section realizers.
 
   Lemma F2MF_rlzr F f:
 	f \realized_by (F2MF F) \wrt conv \and conv0 <->
-	(forall q a, conv q a -> a \from dom f ->
-		exists a', conv0 (F q) a' /\ f a a').
+	(forall q a, a \from conv q -> a \from dom f ->
+		exists fa, fa \from (f a) \n (conv0 (F q))).
   Proof.
-    split => rlzr q a aaq afd; first by apply/rlzr_val; first apply rlzr; first apply aaq.
+    split => rlzr q a aaq afd; first by apply/rlzr_val; first apply/rlzr; first apply/aaq.
     by split => [ | Fq <-]; [rewrite F2MF_dom | apply/rlzr].
   Qed.
   
@@ -222,7 +233,7 @@ Section realizers.
   Proof.
     rewrite F2MF_rlzr.
     split => ass phi x phinx; last by exists (f x); split => //; apply ass.
-    by have [ | fx [cd ->]]:= ass phi x phinx; first by apply F2MF_tot.
+    by have [ | fx [->]]:= ass phi x phinx; first by apply F2MF_tot.
   Qed.
 
   Lemma sing_rlzr_sing F f: F \is_singlevalued -> f \is_singlevalued ->
@@ -279,15 +290,16 @@ Section morphisms.
     make_mf (fun F (f: {f | mf_morphism f}) => (projT1 f) \realized_by F \wrt conv \and conv0).
   
   Global Instance mf_morphisms : Interview mf_mrph_conv.
-  Proof. by split; case => f [F rlzr]; exists F. Qed.
+  Proof. by case => f [F rlzr]; exists F. Qed.
   
   Definition morphism f := mf_morphism (F2MF f).
   
   Definition mrph_conv:= make_mf (fun F (f: {f | morphism f}) => (F2MF (projT1 f)) \realized_by F \wrt conv \and conv0).
 
   Global Instance morphisms: Interview (mrph_conv).
-  Proof. by split; case => f [F rlzr]; exists F. Qed.
+  Proof. by case => f [F rlzr]; exists F. Qed.
 End morphisms.
+
 
 Section realizer_functions.
   Context Q A (conv: Q ->> A).
@@ -345,7 +357,7 @@ Section realizer_functions.
     have [dfd prp]:= Grf d a dna afd.
     have [qfd prp']:= FrG q d qnd dfd.
     split => // q' Fqq'.
-    have [d' [q'nd' Gdd']]:= prp' q' Fqq'.
+    have [d' [Gdd' q'nd']]:= prp' q' Fqq'.
     have [d''' [d'nd''' fd'd''']]:= prp d' Gdd'.
     by exists d'''; split => //; exists d'.
   Qed.

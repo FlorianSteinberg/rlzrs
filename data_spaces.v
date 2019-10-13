@@ -144,7 +144,7 @@ Section data_spaces.
         have phifd: phi \from dom F by apply/rlzr_dom/xfd/phinx/rlzr.
         split =>[ | Fphi val]; first by case: (ass phi phi).
         have [ | | phifd' prp]//:= ass phi phi.
-        have [_ [/=<- val']]:= prp Fphi val.
+        have [stf [/=val' -> ]]:= prp Fphi val.
         have [_ prp']:= rlzr phi x phinx xfd.
         exact/prp'.
       Qed.        
@@ -160,7 +160,7 @@ Section data_spaces.
         exists d => e [x y] /prod_code_spec [enx eny] _.
         have [ | | efd prp]:= ass e (unpair e); first exact/prod_code_spec; first exact/F2MF_dom.
         split => // Fd val; exists x; split => //.
-        by have [_ [/= <- <-]]:= prp Fd val.
+        by have [_ [/= <- ->]]:= prp Fd val.
       Qed.
 
       Lemma snd_slvbl (A B: data_space):
@@ -170,7 +170,7 @@ Section data_spaces.
         exists d => e [x y] /prod_code_spec [enx eny] _.
         have [ | | efd prp]:= ass e (unpair e); first exact/prod_code_spec; first exact/F2MF_dom.
         split => // Fd val; exists y; split => //.
-        by have [_ [/= <- <-]]:= prp Fd val.
+        by have [_ [/= <- ->]]:= prp Fd val.
       Qed.
     End functions.
   End pairs.
