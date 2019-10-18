@@ -5,30 +5,37 @@ Import Morphisms FunctionalExtensionality ProofIrrelevance.
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
-
+  
 Section data_spaces.
   Context (data_type: Type) (raw: data_type -> Type).
   Coercion raw: data_type >-> Sortclass.
-    
+  
+  Structure encoding_of X :=
+    {
+      data: data_type;
+      delta:> Dictionary data X;
+    }.
+
+  Notation "d \code_for x \wrt delta" := ((delta: encoding_of _) d x) (at level 30).
+
   Structure data_space :=
     {
       space :> Type;
-      data: data_type;
-      encoding: data ->> space;
-      surjective: encoding \is_cototal;
-      deterministic: encoding \is_singlevalued;
+      encoding: encoding_of space;
     }.
 
-  Notation "d \codes x" := (x \from encoding _ d) (at level 30).
+  Notation "d \codes x" := (d \code_for x \wrt (encoding _)) (at level 30).
 
-  Definition constructible (A: data_space) (x: A) := {d: data A | d \codes x}.
+  Coercion encoding: data_space >-> encoding_of.
 
-  Canonical ms_data (data: data_type):= Build_data_space (@id_sur data) (@id_sing data).
-    
-    Global Instance ms2dic (A: data_space): Dictionary (encoding A).
-      by split; [apply/surjective | apply/deterministic].
-    Defined.
+  Definition codes_of (A: data_space) (x: A) := {d | d \codes x}.
 
+  Definition id_enc (data: data_type):= id_dictionary data.
+
+  Canonical data_encoding (data: data_type):= Build_encoding_of (id_enc data).
+
+  Canonical space_of_data (data: data_type) := Build_data_space (@data_encoding data).
+  
   Section pairs.
     Structure pairs_data :=
       {
@@ -37,25 +44,37 @@ Section data_spaces.
         surjective_pairing: forall data data', (@unpair data data') \is_surjective;
       }.
     Context (pairs: pairs_data).
-            
-    Canonical product_data_space (A: data_space) (B: data_space): data_space.
-    exists (A * B)%type
-           (pair_data pairs (data A) (data B))
-           ((encoding A) ** (encoding B) \o (F2MF (@unpair pairs (data A) (data B)))).
-    - apply comp_cotot; first by apply F2MF_sing.
-      + by apply fprd_cotot; by apply surjective.
-      by apply surjective_pairing.
-    apply comp_sing; last by apply F2MF_sing.
-    by apply fprd_sing; apply deterministic.
-    Defined.
 
-    Local Notation "A \*_ds B" := (product_data_space A B) (at level 30).
-  
+    Section product_encoding.
+      Definition data_pairs_encoding (data data': data_type): encoding_of (data * data').
+        exists (pair_data pairs data data').
+        exists (F2MF (@unpair pairs data data')); first exact/surjective_pairing.
+        exact/F2MF_sing.
+      Defined.
+
+      Context X X' (delta: encoding_of X) (delta': encoding_of X').
+
+      Canonical product_encoding:=
+        Build_encoding_of (combine_dictionaries
+                             (data_pairs_encoding (data delta) (data delta'))
+                             (product_dictionary delta delta')).
+    End product_encoding.
+
+    Lemma dpe_spec data data': data_pairs_encoding data data' =~= product_encoding _ _.
+    Proof. by move => q [a1 a2]; split => [<- | [[s1 s2] [/= -> [-> ->]]]]//; exists (unpair q). Qed.
+                                                                
+    Section product_space.
+      Context (X X': data_space).
+
+      Canonical product_space :=
+        Build_data_space (product_encoding (encoding X) (encoding X')).
+    End product_space.      
+    Local Notation "A \*_ds B" := (product_space A B) (at level 30).
+
     Lemma prod_code_spec (A B: data_space) d (x: A) (y: B):
       d \codes (x,y) <-> (unpair d).1 \codes x /\ (unpair d).2 \codes y.
     Proof.
-      split => [[[p [<- [/= dnx dny]] ]] | [dnx dny]] //.
-      split => [ | _ <- /=]; last by exists (x, y).
+      split => [[p [<-]] | [dnx dny]]//.
       by exists ((unpair d).1, (unpair d).2); split; first exact/injective_projections.
     Qed.
   
@@ -76,48 +95,51 @@ Section data_spaces.
       Defined.
       
       Context (universal: functions_data).
-      Definition associate (D D': data_type) A A' (conv: D ->> A) (conv': D' ->> A')
-                 (d: function_data universal D D') f :=
-        f \realized_by run d \wrt conv \and conv'.
-      
-      Definition solvable (A B: data_space) (f: A ->> B):=
-        {d: function_data universal (data A) (data B) | associate (encoding A) (encoding B) d f}.
-      
-      Definition function_encoding (D D': data_type) A A' (conv: D ->> A) (conv': D' ->> A') :=
-        make_mf (fun d (f: {f: A -> A' | exists d, associate conv conv' d (F2MF f)}) =>
-                   associate conv conv' d (F2MF (sval f))).
-      
-      Lemma funenc_sur (D D': data_type) A A' (conv: D ->> A) (conv': D' ->> A'):
-        (function_encoding conv conv') \is_cototal.
-      Proof. by move => [f [/=d ass]]; exists d. Qed.
-      
-      Lemma funenc_sing (A B: data_space):
-        (function_encoding (encoding A) (encoding B)) \is_singlevalued.
-      Proof.
-        move => d [/=f P] [/= g Q] ass ass'.
-        have eq: f = g by apply/functional_extensionality/rlzr_F2MF_eq/ass'/ass.
-        move: Q ass'; rewrite -eq => Q ass'.
-        by f_equal; apply/proof_irrelevance.
-      Qed.
-    
-      Canonical functions (A B: data_space): data_space.
-      exists (make_subset (fun (f: A -> B) =>
-                             exists d, associate (encoding A) (encoding B) d (F2MF f)))
-             (function_data universal (data A) (data B))
-             (function_encoding (encoding A) (encoding B)).
-      - exact/funenc_sur.
-        exact/funenc_sing.
-      Defined.  
 
-      Notation "A c-> B" := (functions A B) (at level 30).
-      
+      Section function_encoding.       
+        Context X X' (delta: encoding_of X) (delta': encoding_of X'). 
+
+        Definition solution_wrt f (d: function_data universal _ _) :=
+          f \realized_by run d \wrt delta \and delta'.
+
+        Definition realizer_wrt d f:= solution_wrt (F2MF f) d.
+
+        Definition associate (d: function_data universal (data delta) (data delta')) f :=
+          (F2MF f) \realized_by run d \wrt delta \and delta'.
+        
+        Canonical function_encoding: encoding_of (codom (make_mf associate)). 
+          exists (function_data universal (data delta) (data delta')).
+          exists (make_mf (fun d f => associate d (sval f))) => [[f [d ass]] | ]; first by exists d.
+          move => d [f P]  [g Q]/= ass ass'.
+          suff eq: f = g.
+          - move: Q ass'; rewrite -eq => Q ass'.
+            by f_equal; apply/proof_irrelevance.
+          by apply/functional_extensionality => x; rewrite (rlzr_F2MF_eq ass ass').
+        Defined.
+      End function_encoding.
+
+      Section function_space.
+        Context (X X': data_space).
+
+        Canonical function_space:= Build_data_space (function_encoding (encoding X) (encoding X')).
+
+        Definition solution := @solution_wrt _ _ (encoding X) (encoding X').
+
+        Definition solutions f := make_subset (solution f).
+
+        Definition solvable f:= exists d, solution f d.
+
+        Definition realizer f := solution (F2MF f).
+      End function_space.
+      Notation "A c-> B" := (function_space A B) (at level 30).
+
       Definition evaluation A B (fx: A c-> B \*_ds A):= sval fx.1 fx.2.
       
-      Lemma eval_slvbl A B: solvable (F2MF (@evaluation A B)).
+      Lemma eval_slvbl A B: solutions (F2MF (@evaluation A B)).
       Proof.
         have [E E_spec]:= eval universal (data A) (data B).
-        exists E => d [f x] [[[nf nx [/=eq [/=nfnf nxnx] subs]]]] [fx val].
-        have [ | [nfx/= nfxnfx] dm/=]:= nfnf nx x nxnx; first by exists fx.
+        exists E => d [f x] [[cf cx [/=eq [/= cfcf cxcx]]]] [fx val].
+        have [ | [nfx/= nfxnfx] dm/=]:= cfcf cx x cxcx; first by exists fx.
         split => [ | nfx' /E_spec nfxnfx']; first by exists nfx; apply/E_spec; rewrite eq.
         by apply/dm; rewrite eq in nfxnfx'.
       Qed.
@@ -129,11 +151,10 @@ Section data_spaces.
         by exists d.
       Defined.
 
-      Lemma cnstr_slvbl (A B: data_space) (f: A c-> B):
-        constructible f = solvable (F2MF (sval f)).
+      Lemma cnstr_slvbl (A B: data_space) (f: A c-> B): codes_of f = solutions (F2MF (sval f)).
       Proof. done. Qed.
       
-      Lemma eval_cnstr (A B: data_space): constructible (ms_eval A B).
+      Lemma eval_cnstr (A B: data_space): codes_of (ms_eval A B).
       Proof. exact/eval_slvbl. Qed.
 
       Lemma slvbl_rlzr (A B: data_space) (F: data A ->> data B) (f: A ->> B):
@@ -175,17 +196,5 @@ Section data_spaces.
     End functions.
   End pairs.
 End data_spaces.
-Notation "A \*_ds B" := (product_data_space A B) (at level 30): ds_scope.
+Notation "A \*_ds B" := (product_space A B) (at level 30): ds_scope.
 Delimit Scope ds_scope with ds.
-
-Module modest_sets.
-  Structure data_structure:=
-  {
-    data_types: Type;
-    raw: data_types -> Type;
-    pairs: pairs_data raw;
-    functions: functions_data pairs;
-  }.
-
-  Definition modest_set (data: data_structure) := data_space (@raw data).
-End modest_sets.

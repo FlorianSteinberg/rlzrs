@@ -24,9 +24,13 @@ Unset Printing Implicit Defensive.
 Delimit Scope rlzr_scope with rlzr.
 Local Open Scope rlzr_scope.
 Section interviews.
-  Class Interview Q A (conversation: Q ->> A) := only_respond : conversation \is_cototal.
+  Class Interview Q A :=
+    {
+      conversation:> Q ->> A;
+      only_respond : conversation \is_cototal
+    }.
 
-  Context `{I: Interview}.
+  Context Q A (I: Interview Q A).
 
   Lemma conv_sur: conversation \is_cototal.
   Proof. exact only_respond. Qed.
@@ -36,7 +40,7 @@ Section interviews.
   Lemma id_sur S: (@mf_id S) \is_cototal.
   Proof. by move => c; exists c. Qed.
 
-  Definition id_interview S: Interview (@mf_id S):= (@id_sur S).
+  Definition id_interview S:= Build_Interview (@id_sur S).
 
   Lemma fun_conv_sur (f: A -> Q): (F2MF f\^-1) \is_cototal.
   Proof. exact/cotot_tot_inv/F2MF_tot. Qed.
@@ -46,41 +50,45 @@ Section interviews.
   Definition sub_conversation (P: subset A) :=
     make_mf (fun q (a: {x | x \from P})=> conversation q (sval a)).
 
-  Global Instance sub_interview (P: subset A): Interview (sub_conversation P).
-  Proof. by case => a /= _; surjectivity. Qed.
+  Lemma sub_conv_sur P: (sub_conversation P) \is_cototal.
+  Proof. by move => [a Pa]; have [q]:= conv_sur a; exists q. Qed.
+  
+  Canonical sub_interview (P: subset A): Interview Q P.
+    by exists (sub_conversation P); apply/sub_conv_sur.
+  Defined.
 
-  Global Instance cmbn_ntrvw `{I0: Interview A}: Interview (conversation0 \o_R conversation).
-  Proof. by surjectivity. Qed.
+  Definition combine_interviews A' (I': Interview A A'): Interview Q A'.
+    by exists (conversation \o_R conversation); apply/rcmp_cotot; apply/only_respond.
+  Defined.
 
-  Global Instance list_interview: Interview (mf_map conversation).
-  Proof. by surjectivity. Qed.
+  Global Instance list_interview: Interview (seq Q) (seq A).
+    by exists (mf_map conversation); apply/map_sur/only_respond.
+  Defined.
+  Context Q' A' (I': Interview Q' A').
 
-  Context `{I0: Interview}.
-
-  Global Instance prod_interview: Interview (conversation ** conversation0).
-  Proof. by surjectivity. Qed.
+  Global Instance prod_interview: Interview (Q * Q') (A * A').
+    by exists (conversation ** conversation); surjectivity; apply/only_respond.
+  Defined.
     
-  Global Instance sum_interview: Interview (conversation +s+ conversation0).
-  Proof.
-    move => [a | b] /=.
-      by have [c cna]:= conv_sur a; exists (inl c).
-    by have [c cnab]:= only_respond b; exists (inr c).
-  Qed.
+  Global Instance sum_interview: Interview (Q + Q') (A + A').
+    by exists (conversation +s+ conversation); surjectivity; apply/only_respond.
+  Defined.
 End interviews.
+Coercion conversation: Interview >-> multifunction.
 
 Ltac surjectivity := repeat mf.surjectivity || apply/conv_sur.
 
+
 Section realizer.
-  Local Notation "a \is_response_to q \wrt conversation" := (a \from (conversation: _ ->> _) q) (at level 2).
-  Context `{I: Interview} `{I0: Interview}.
-  Notation conv := conversation.
-  Notation conv0 := conversation0.
+  Local Notation "a \is_response_to q \wrt conversation" :=
+    (a \from (conversation: _ ->> _) q) (at level 30).
+  Context Q A (conv: Q ->> A) Q' A' (conv': Q' ->> A').
   
-  Definition realizer (F: Q ->> Q0) (f: A ->> A0) :=
+  Definition realizer (F: Q ->> Q') (f: A ->> A') :=
     (forall q a, a \is_response_to q \wrt conv -> a \from dom f ->
                  q \from dom F
                  /\
-		 forall Fq, Fq \from F q -> exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv0).
+		 forall Fq, Fq \from F q -> exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv').
 
   Local Notation "F '\realizes' f" := (realizer F f) (at level 30).
 
@@ -89,7 +97,7 @@ Section realizer.
     forall (a: dom f) (q: conv\^-1 (sval a)), (sval q) \from dom F
                                          /\
                                          forall (Fq: F (sval q)), exists (fa: f (sval a)),
-                                             (sval fa) \is_response_to (sval Fq) \wrt conv0.
+                                             (sval fa) \is_response_to (sval Fq) \wrt conv'.
   Proof.
     split => [rlzr [a afd] [q/= aaq] | rlzr q a aaq afd].
     - have [qfd prp]//:= rlzr q a aaq afd.
@@ -101,7 +109,7 @@ Section realizer.
   Qed.
 
   Global Instance rlzr_prpr:
-    Proper (@equiv Q Q0 ==> @equiv A A0 ==> iff) (@realizer).
+    Proper (@equiv Q Q' ==> @equiv A A' ==> iff) (@realizer).
   Proof.
     move => F G FeG f g feg.
     split => rlzr q a aaq afd.
@@ -119,26 +127,22 @@ Section realizer.
     by exists a'; rewrite feg.
   Qed.
   
-  Lemma split_rlzr (F: Q ->> Q0) (f: A ->> A0):
+  Lemma split_rlzr (F: Q ->> Q') (f: A ->> A'):
 		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> q \from dom F) ->
-		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> forall Fq, Fq \from F q -> exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv0) ->
+		(forall q a, a \is_response_to q \wrt conv -> a \from dom f -> forall Fq, Fq \from F q -> exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv') ->
                 F \realizes f.
-  Proof.
-    by move => dm val q a arq afd; split => [ | Fq FqFq]; [apply/dm/afd | apply/val/FqFq].
-  Qed.
+  Proof. by move => dm val q a ? afd; split => [ | Fq FqFq]; [apply/dm/afd | apply/val/FqFq]. Qed.
 
-  Lemma rlzr_dom (F: Q ->> Q0) (f: A ->> A0) q a: F \realizes f ->
-	a \is_response_to q \wrt conv -> a \from dom f -> q \from dom F.
+  Lemma rlzr_dom (F: Q ->> Q') (f: A ->> A') q a:
+    F \realizes f -> a \is_response_to q \wrt conv -> a \from dom f -> q \from dom F.
   Proof. by move => Frf arq qfd; have []:= Frf q a arq qfd. Qed.
 
-  Lemma rlzr_val (F: Q ->> Q0) (f: A ->> A0) q a Fq: F \realizes f ->
+  Lemma rlzr_val (F: Q ->> Q') (f: A ->> A') q a Fq: F \realizes f ->
 	            a \is_response_to q \wrt conv -> a \from dom f -> Fq \from F q ->
-                    exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv0.
+                    exists fa, fa \from f a /\ fa \is_response_to Fq \wrt conv'.
   Proof. by move => Frf arq qfd FqFq; have [_ prp]:= Frf q a arq qfd; apply prp. Qed.
 End realizer.
-Arguments realizer: clear implicits.
-Arguments realizer {Q} {A} (conversation) {Q0} {A0} (conversation0).
-Notation "f '\realized_by' F \wrt conv \and conv0" := (realizer conv conv0 F f) (at level 2).
+Notation "f '\realized_by' F \wrt conv \and conv'" := (realizer conv conv' F f) (at level 2).
 
 Section realizers.
   Lemma id_rlzr_tight Q Q' (F G: Q ->> Q'):
@@ -280,24 +284,27 @@ Section realizers.
 End realizers.
 
 Section morphisms.
-  Context `{I: Interview} `{I0: Interview}.
-  Notation conv:= conversation.
-  Notation conv0:= conversation0.
+  Context Q A (I: Interview Q A) Q' A' (I': Interview Q' A').
   
-  Definition mf_morphism f := exists F, f \realized_by F \wrt conv \and conv0.
-  
+  Definition mf_morphism f := exists F, f \realized_by F \wrt I \and I'.
+
+  Definition mf_morphisms:= make_subset mf_morphism.
+
   Definition mf_mrph_conv:=
-    make_mf (fun F (f: {f | mf_morphism f}) => (projT1 f) \realized_by F \wrt conv \and conv0).
+    make_mf (fun F (f: mf_morphisms) => (projT1 f) \realized_by F \wrt I \and I').
   
-  Global Instance mf_morphisms : Interview mf_mrph_conv.
-  Proof. by case => f [F rlzr]; exists F. Qed.
+  Global Instance mf_morphisms_Interview : Interview (Q ->> Q') mf_morphisms.
+    by exists mf_mrph_conv; surjectivity; case => f [F]; exists F.
+  Defined.
   
   Definition morphism f := mf_morphism (F2MF f).
+  Definition morphisms := make_subset morphism.
   
-  Definition mrph_conv:= make_mf (fun F (f: {f | morphism f}) => (F2MF (projT1 f)) \realized_by F \wrt conv \and conv0).
+  Definition mrph_conv:= make_mf (fun F (f: morphisms) =>
+                                    (F2MF (projT1 f)) \realized_by F \wrt I \and I').
 
-  Global Instance morphisms: Interview (mrph_conv).
-  Proof. by case => f [F rlzr]; exists F. Qed.
+  Global Instance morphisms_Interview: Interview (Q ->> Q') morphisms.
+  Proof. exists mrph_conv; by case => f [F rlzr]; exists F. Qed.
 End morphisms.
 
 
